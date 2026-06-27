@@ -26,7 +26,7 @@ deps:
 web-build:
 	cd web && npm install --prefer-offline && npm run build
 
-build: proto deps web-build
+build: deps web-build
 	go build -o bin/pp-starlink ./cmd/pp-starlink
 	go build -o bin/e2e ./cmd/e2e
 
