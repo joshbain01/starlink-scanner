@@ -47,6 +47,8 @@ func main() {
 		cmdReport(cfg)
 	case "obstruction-map":
 		cmdObstructionMap(cfg)
+	case "serve":
+		cmdServe(cfg)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
 		printHelp()
@@ -597,6 +599,12 @@ COMMANDS
     Statistical analysis of collected telemetry: drop rate by day and hour,
     outage bursts, dish reboots, cause breakdown, handoff correlation.
     Read-only — no writes to the database.
+
+  serve [--port <port>]
+    Start the Ground Control web dashboard (default port 7070).
+    Exposes /api/* endpoints and serves the React SPA.
+    Requires the web/ directory to have been built: cd web && npm run build
+    --port <port>   Listen port (default 7070).
 
   obstruction-map
     Show az/el zones where the dish itself flagged currently_obstructed=true.

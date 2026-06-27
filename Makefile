@@ -3,7 +3,7 @@ GEN_DIR    := proto/device
 GRPCURL    := $(shell which grpcurl 2>/dev/null || echo $$HOME/go/bin/grpcurl)
 DISH       := 192.168.100.1:9200
 
-.PHONY: proto deps build verify-dish refresh-schema
+.PHONY: proto deps build web-build up verify-dish refresh-schema
 
 # Pull live descriptor from dish to confirm field numbers still match:
 #   make verify-dish
@@ -23,9 +23,15 @@ deps:
 	go mod download
 	go mod tidy
 
-build: proto deps
+web-build:
+	cd web && npm install --prefer-offline && npm run build
+
+build: proto deps web-build
 	go build -o bin/pp-starlink ./cmd/pp-starlink
 	go build -o bin/e2e ./cmd/e2e
+
+up: web-build
+	docker compose up --build
 
 # Capture live gRPC schema snapshot from dish.
 # Run after a firmware update to detect field-number drift.

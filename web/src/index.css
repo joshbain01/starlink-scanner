@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { background-color: #09111f; }
+  body { font-family: 'Inter', system-ui, sans-serif; color: #f0f4f8; }
+}
+
+@layer utilities {
+  .font-mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+}
+
+/* Pulsing live indicator */
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,229,160,0.6); }
+  50%       { box-shadow: 0 0 0 5px rgba(0,229,160,0); }
+}
+.live-dot { animation: live-pulse 2s ease-in-out infinite; }
+
+/* Subtle blue glow on focused inputs */
+.glow-focus:focus {
+  outline: none;
+  border-color: #00a8ff;
+  box-shadow: 0 0 0 3px rgba(0,168,255,0.18);
+}
