@@ -1,0 +1,154 @@
+// Minimal Starlink dish proto — field numbers from live gRPC reflection.
+// Verify live: grpcurl -plaintext 192.168.100.1:9200 describe SpaceX.API.Device.DishGetStatusResponse
+// Regenerate stubs: make proto
+syntax = "proto3";
+package SpaceX.API.Device;
+option go_package = "pp-starlink/proto/device;device";
+
+service Device {
+  rpc Handle(Request) returns (Response);
+}
+
+message Request {
+  oneof request {
+    GetStatusRequest    get_status      = 1004;
+    GetHistoryRequest   get_history     = 1007;
+    GetDeviceInfoRequest get_device_info = 1008;
+  }
+}
+
+message Response {
+  oneof response {
+    DishGetStatusResponse  dish_get_status  = 2004;
+    DishGetHistoryResponse dish_get_history = 2006;
+    GetDeviceInfoResponse  get_device_info  = 1004;
+  }
+}
+
+message GetStatusRequest {}
+message GetHistoryRequest {}
+message GetDeviceInfoRequest {}
+
+// ── Device info ──────────────────────────────────────────────────────────────
+
+message GetDeviceInfoResponse {
+  DeviceInfo device_info = 1;
+}
+
+message DeviceInfo {
+  string id               = 1;
+  string hardware_version = 2;
+  string software_version = 3;
+  string country_code     = 4;
+  int32  utc_offset_s     = 5;
+  int32  bootcount        = 8;
+}
+
+// ── Status ───────────────────────────────────────────────────────────────────
+
+message DishGetStatusResponse {
+  DeviceInfo              device_info                    = 1;
+  DeviceState             device_state                   = 2;
+  float                   pop_ping_drop_rate             = 1003;
+  DishObstructionStats    obstruction_stats              = 1004;
+  DishAlerts              alerts                         = 1005;
+  float                   downlink_throughput_bps        = 1007;
+  float                   uplink_throughput_bps          = 1008;
+  float                   pop_ping_latency_ms            = 1009;
+  float                   boresight_azimuth_deg          = 1011;
+  float                   boresight_elevation_deg        = 1012;
+  DishOutage              outage                         = 1014;
+  int32                   eth_speed_mbps                 = 1016;
+  bool                    is_snr_above_noise_floor       = 1018;
+  bool                    is_snr_persistently_low        = 1022;
+  AlignmentStats          alignment_stats                = 1027;
+  bool                    is_cell_disabled               = 1029;
+  RateLimitReason         dl_bandwidth_restricted_reason = 1044;
+  RateLimitReason         ul_bandwidth_restricted_reason = 1045;
+}
+
+message DeviceState {
+  uint64 uptime_s = 1;
+}
+
+message DishObstructionStats {
+  float fraction_obstructed  = 1;
+  float valid_s              = 4;
+  bool  currently_obstructed = 5;
+}
+
+message DishAlerts {
+  bool motors_stuck                  = 1;
+  bool thermal_shutdown              = 2;
+  bool thermal_throttle              = 3;
+  bool unexpected_location           = 4;
+  bool mast_not_near_vertical        = 5;
+  bool slow_ethernet_speeds          = 6;
+  bool roaming                       = 7;
+  bool install_pending               = 8;
+  bool is_heating                    = 9;
+  bool power_supply_thermal_throttle = 10;
+  bool is_power_save_idle            = 11;
+  bool dbf_telem_stale               = 14;
+  bool low_motor_current             = 16;
+  bool lower_signal_than_predicted   = 17;
+  bool slow_ethernet_speeds_100      = 18;
+  bool obstruction_map_reset         = 19;
+  bool dish_water_detected           = 20;
+  bool router_water_detected         = 21;
+  bool upsu_router_port_slow         = 22;
+  bool no_ethernet_link              = 23;
+}
+
+message DishOutage {
+  enum Cause {
+    UNKNOWN           = 0;
+    BOOTING           = 1;
+    STOWED            = 2;
+    THERMAL_SHUTDOWN  = 3;
+    NO_SCHEDULE       = 4;
+    NO_SATS           = 5;
+    OBSTRUCTED        = 6;
+    NO_DOWNLINK       = 7;
+    NO_PINGS          = 8;
+    ACTUATOR_ACTIVITY = 9;
+    CABLE_TEST        = 10;
+    SLEEPING          = 11;
+    SKY_SEARCH        = 13;
+    INHIBIT_RF        = 14;
+  }
+  Cause  cause              = 1;
+  int64  start_timestamp_ns = 2;
+  uint64 duration_ns        = 3;
+  bool   did_switch         = 4;
+}
+
+message AlignmentStats {
+  float tilt_angle_deg                  = 3;
+  float boresight_azimuth_deg           = 4;
+  float boresight_elevation_deg         = 5;
+  float attitude_uncertainty_deg        = 7;
+  float desired_boresight_azimuth_deg   = 8;
+  float desired_boresight_elevation_deg = 9;
+}
+
+enum RateLimitReason {
+  RATE_LIMIT_UNKNOWN           = 0;
+  RATE_LIMIT_NONE              = 1;
+  RATE_LIMIT_POLICY            = 2;
+  RATE_LIMIT_USER_CUSTOM       = 3;
+  RATE_LIMIT_OVERAGE           = 5;
+  RATE_LIMIT_LOW_SPEED_POLICY  = 6;
+}
+
+// ── History ──────────────────────────────────────────────────────────────────
+
+message DishGetHistoryResponse {
+  uint64          current                 = 1;
+  repeated float  pop_ping_drop_rate      = 1001;
+  repeated float  pop_ping_latency_ms     = 1002;
+  repeated float  downlink_throughput_bps = 1003;
+  repeated float  uplink_throughput_bps   = 1004;
+  repeated DishOutage outages             = 1009;
+  repeated float  power_in               = 1010;
+}

@@ -1,0 +1,41 @@
+version: "3.9"
+
+volumes:
+  starlink-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data
+
+services:
+  pp-starlink-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.go
+    network_mode: host          # required: raw ICMP + dish gateway access
+    restart: unless-stopped
+    volumes:
+      - starlink-data:/data
+    environment:
+      - STARLINK_SNR_DELTA=3.0   # dB drop below 24h avg to call physical blockage
+      - STARLINK_NOISE_DELTA=3.0 # dB spike above 24h avg to call EMI
+    # Run init then daemon in sequence on first start
+    command: >
+      sh -c "pp-starlink init && pp-starlink daemon"
+
+  rf-listener:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    restart: unless-stopped
+    volumes:
+      - starlink-data:/data
+    devices:
+      - /dev/bus/usb:/dev/bus/usb   # pass through RTL-SDR dongle
+    environment:
+      - DB_PATH=/data/starlink_telemetry.db
+      - RF_CENTER_HZ=1575000000     # tune to your LNB IF output
+      - RF_BW_HZ=4000000
+      - RTL_GAIN=40
+      - SAMPLE_INTERVAL_S=10
