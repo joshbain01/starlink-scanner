@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"pp-starlink/internal/db"
+	"pp-starlink/internal/maintenance"
 	"pp-starlink/internal/orbit"
 	"pp-starlink/internal/ping"
+	"pp-starlink/internal/retry"
 	"pp-starlink/internal/starlink"
 )
 
@@ -30,6 +32,9 @@ type Collector struct {
 
 	sc        *starlink.Client
 	grpcFails int
+
+	maint       *maintenance.Orchestrator
+	retryPolicy retry.Policy
 
 	tles      []orbit.TLE
 	tleExpiry time.Time
@@ -55,6 +60,11 @@ func NewCollector(d *db.DB, cfg Config, targets [3]string, lat, lon float64, has
 		hasObs:       hasObs,
 	}
 	c.dial()
+	c.retryPolicy = retry.ConsecutiveFailures{N: 3}
+	c.maint = maintenance.New(
+		&maintenance.Interval{Period: 24 * time.Hour, RunFunc: func() error { return c.d.Prune() }},
+		&maintenance.Interval{Period: 7 * 24 * time.Hour, RunFunc: func() error { return c.d.Vacuum() }},
+	)
 	if hasObs {
 		if t, err := orbit.FetchTLEs(c.tleCacheFile); err != nil {
 			log.Printf("TLE fetch: %v — orbit disabled until next refresh", err)
@@ -81,8 +91,9 @@ func (c *Collector) Close() {
 func (c *Collector) Tick(ctx context.Context) {
 	now := time.Now()
 	c.maybeRefreshTLEs(now)
-	c.maybePrune(now)
-	c.maybeVacuum(now)
+	for _, err := range c.maint.Tick(now) {
+		log.Printf("maintenance: %v", err)
+	}
 	c.maybeRefreshSchema(now)
 
 	if c.sc == nil {
@@ -95,7 +106,7 @@ func (c *Collector) Tick(ctx context.Context) {
 		c.grpcFails = 0
 	} else {
 		c.grpcFails++
-		if c.grpcFails >= 3 {
+		if c.retryPolicy.ShouldRedial(c.grpcFails) {
 			log.Printf("grpc: %d consecutive failures — redialing", c.grpcFails)
 			c.dial()
 		}

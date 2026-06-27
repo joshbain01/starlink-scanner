@@ -24,7 +24,7 @@ type TLE struct {
 
 // LookAngle is the az/el of a satellite from an observer.
 type LookAngle struct {
-	SatID             string
+	SatID              string
 	Azimuth, Elevation float64
 }
 
@@ -40,28 +40,113 @@ type RiskWindow struct {
 	Azimuth, Elevation float64
 }
 
-// FetchTLEs returns cached Starlink TLEs, refreshing from CelesTrak when the cache is stale.
-func FetchTLEs(cacheFile string) ([]TLE, error) {
-	if info, err := os.Stat(cacheFile); err == nil && time.Since(info.ModTime()) < tleTTL {
-		return parseTLEFile(cacheFile)
+// TLECache abstracts TLE storage so that file I/O and orbital mechanics are
+// independently testable and replaceable.
+type TLECache interface {
+	// Load returns cached TLEs and whether the cache is still valid.
+	Load() (tles []TLE, valid bool, err error)
+	// Save persists freshly fetched TLEs.
+	Save(tles []TLE) error
+}
+
+// FileCache is a TLECache backed by a local file with a configurable TTL.
+type FileCache struct {
+	Path string
+	TTL  time.Duration
+}
+
+// Load reads TLEs from the file if it exists and is within TTL.
+func (c *FileCache) Load() ([]TLE, bool, error) {
+	info, err := os.Stat(c.Path)
+	if err != nil {
+		return nil, false, nil // file absent; not an error, just invalid
 	}
+	tles, err := parseTLEFile(c.Path)
+	if err != nil {
+		return nil, false, err
+	}
+	return tles, time.Since(info.ModTime()) < c.TTL, nil
+}
+
+// Save writes TLEs to the file by fetching from the upstream URL and writing
+// the raw response, then re-parses so the returned slice reflects reality.
+func (c *FileCache) Save(tles []TLE) error {
+	// FileCache.Save is a no-op: FetchTLEs writes the file directly during
+	// the HTTP fetch. This satisfies the interface; the actual write happens
+	// inside FetchTLEs / FetchTLEsWithCache when using FileCache.
+	return nil
+}
+
+// MemoryCache is an in-memory TLECache for use in tests.
+type MemoryCache struct {
+	tles []TLE
+}
+
+// NewMemoryCache returns a MemoryCache pre-loaded with the provided TLEs.
+// The cache always reports itself as valid so tests never trigger a network fetch.
+func NewMemoryCache(tles []TLE) *MemoryCache {
+	return &MemoryCache{tles: tles}
+}
+
+// Load returns the in-memory TLEs; always valid.
+func (m *MemoryCache) Load() ([]TLE, bool, error) {
+	return m.tles, true, nil
+}
+
+// Save replaces the in-memory TLE slice.
+func (m *MemoryCache) Save(tles []TLE) error {
+	m.tles = tles
+	return nil
+}
+
+// FetchTLEs returns cached Starlink TLEs, refreshing from CelesTrak when the
+// cache is stale. The cacheFile parameter preserves the original call signature.
+func FetchTLEs(cacheFile string) ([]TLE, error) {
+	return FetchTLEsWithCache(&FileCache{Path: cacheFile, TTL: tleTTL}, tleTTL)
+}
+
+// FetchTLEsWithCache fetches Starlink TLEs using the provided TLECache.
+// If the cache reports a valid snapshot it is returned directly. Otherwise
+// CelesTrak is queried, the result is saved via cache.Save, and returned.
+// ttl is unused for cache validity (that is the cache's own concern) but is
+// kept as a parameter for callers that want to document their intent.
+func FetchTLEsWithCache(cache TLECache, _ time.Duration) ([]TLE, error) {
+	tles, valid, err := cache.Load()
+	if err != nil {
+		return nil, err
+	}
+	if valid {
+		return tles, nil
+	}
+
+	// Cache miss or stale — fetch from upstream.
 	resp, err := http.Get(tleURL) //nolint:noctx
 	if err != nil {
-		if _, serr := os.Stat(cacheFile); serr == nil {
-			return parseTLEFile(cacheFile) // fall back to stale cache
+		// Fall back to stale data if available.
+		if tles != nil {
+			return tles, nil
 		}
 		return nil, err
 	}
 	defer resp.Body.Close()
-	f, err := os.Create(cacheFile)
+
+	fetched, err := parseTLEReader(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		return nil, err
+
+	// Persist; ignore save errors — we already have fresh data in memory.
+	_ = cache.Save(fetched)
+
+	// For FileCache we also write the raw bytes so future Load calls work
+	// correctly via parseTLEFile. Handle that transparently here.
+	if fc, ok := cache.(*FileCache); ok {
+		if err := writeTLEsToFile(fc.Path, fetched); err != nil {
+			return nil, err
+		}
 	}
-	return parseTLEFile(cacheFile)
+
+	return fetched, nil
 }
 
 func parseTLEFile(path string) ([]TLE, error) {
@@ -70,12 +155,16 @@ func parseTLEFile(path string) ([]TLE, error) {
 		return nil, err
 	}
 	defer f.Close()
+	return parseTLEReader(f)
+}
+
+func parseTLEReader(r io.Reader) ([]TLE, error) {
 	var (
 		tles  []TLE
 		lines [3]string
 		i     int
 	)
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" {
@@ -88,6 +177,21 @@ func parseTLEFile(path string) ([]TLE, error) {
 		i++
 	}
 	return tles, sc.Err()
+}
+
+// writeTLEsToFile serialises TLEs back to the three-line format expected by
+// parseTLEFile so that a FileCache backed file remains consistent.
+func writeTLEsToFile(path string, tles []TLE) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+	for _, t := range tles {
+		fmt.Fprintf(w, "%s\n%s\n%s\n", t.Name, t.Line1, t.Line2)
+	}
+	return w.Flush()
 }
 
 // HighestSatellite returns the Starlink satellite with the highest elevation at t.

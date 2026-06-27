@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -112,7 +113,7 @@ func Open(path string) (*DB, error) {
 		}
 	}
 	d := &DB{db: raw}
-	if err := d.initSchema(); err != nil {
+	if err := d.runMigrations(); err != nil {
 		raw.Close()
 		return nil, err
 	}
@@ -121,8 +122,13 @@ func Open(path string) (*DB, error) {
 
 func (d *DB) Close() error { return d.db.Close() }
 
-func (d *DB) initSchema() error {
-	_, err := d.db.Exec(`
+type migration struct {
+	version int
+	up      string
+}
+
+var migrations = []migration{
+	{1, `
 		CREATE TABLE IF NOT EXISTS network_telemetry (
 			timestamp            INTEGER NOT NULL,
 			uptime_s             INTEGER,
@@ -158,42 +164,73 @@ func (d *DB) initSchema() error {
 		CREATE INDEX IF NOT EXISTS idx_rf_ts     ON rf_telemetry(timestamp);
 		CREATE INDEX IF NOT EXISTS idx_outage_ts ON outage_telemetry(start_timestamp_ns);
 		CREATE INDEX IF NOT EXISTS idx_event_ts  ON event_log(start_timestamp_ns);
-	`)
-	if err != nil {
-		return err
+	`},
+	{2, `ALTER TABLE network_telemetry ADD COLUMN lower_signal_than_predicted INTEGER`},
+	{2, `ALTER TABLE network_telemetry ADD COLUMN is_snr_above_noise_floor INTEGER`},
+	{3, `ALTER TABLE network_telemetry ADD COLUMN target_satellite_id TEXT`},
+	{3, `ALTER TABLE network_telemetry ADD COLUMN calculated_azimuth REAL`},
+	{3, `ALTER TABLE network_telemetry ADD COLUMN calculated_elevation REAL`},
+	{3, `ALTER TABLE network_telemetry ADD COLUMN pop_latency_ms REAL`},
+	{3, `ALTER TABLE network_telemetry ADD COLUMN pop_drop_rate REAL`},
+	{4, `ALTER TABLE network_telemetry ADD COLUMN currently_obstructed INTEGER`},
+	{4, `ALTER TABLE network_telemetry ADD COLUMN outage_cause TEXT`},
+	{4, `ALTER TABLE network_telemetry ADD COLUMN downlink_bps REAL`},
+	{4, `ALTER TABLE network_telemetry ADD COLUMN uplink_bps REAL`},
+	{4, `ALTER TABLE network_telemetry ADD COLUMN is_snr_persistently_low INTEGER`},
+	{5, `ALTER TABLE network_telemetry ADD COLUMN boresight_azimuth_deg REAL`},
+	{5, `ALTER TABLE network_telemetry ADD COLUMN boresight_elevation_deg REAL`},
+	{5, `ALTER TABLE network_telemetry ADD COLUMN tilt_angle_deg REAL`},
+	{6, `ALTER TABLE network_telemetry ADD COLUMN dl_bandwidth_restricted_reason TEXT`},
+	{6, `ALTER TABLE network_telemetry ADD COLUMN ul_bandwidth_restricted_reason TEXT`},
+	{6, `ALTER TABLE network_telemetry ADD COLUMN eth_speed_mbps INTEGER`},
+	{7, `ALTER TABLE network_telemetry ADD COLUMN alert_is_heating INTEGER`},
+	{7, `ALTER TABLE network_telemetry ADD COLUMN alert_power_supply_thermal_throttle INTEGER`},
+	{7, `ALTER TABLE network_telemetry ADD COLUMN alert_dish_water_detected INTEGER`},
+	{7, `ALTER TABLE network_telemetry ADD COLUMN alert_router_water_detected INTEGER`},
+	{7, `ALTER TABLE network_telemetry ADD COLUMN alert_no_ethernet_link INTEGER`},
+	{7, `ALTER TABLE network_telemetry ADD COLUMN alert_roaming INTEGER`},
+	{8, `ALTER TABLE network_telemetry ADD COLUMN max_latency_ms REAL`},
+	{8, `ALTER TABLE network_telemetry ADD COLUMN min_latency_ms REAL`},
+	{8, `ALTER TABLE network_telemetry ADD COLUMN brief_outage_count INTEGER`},
+	{8, `ALTER TABLE network_telemetry ADD COLUMN brief_outage_duration_s REAL`},
+}
+
+func (d *DB) runMigrations() error {
+	// Read current schema version from app_config. app_config may not exist yet
+	// on a brand-new database, so bootstrap it first with a minimal CREATE.
+	if _, err := d.db.Exec(`CREATE TABLE IF NOT EXISTS app_config (key TEXT UNIQUE NOT NULL, value TEXT)`); err != nil {
+		return fmt.Errorf("bootstrap app_config: %w", err)
 	}
-	for _, col := range []string{
-		"ALTER TABLE network_telemetry ADD COLUMN lower_signal_than_predicted INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN is_snr_above_noise_floor INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN target_satellite_id TEXT",
-		"ALTER TABLE network_telemetry ADD COLUMN calculated_azimuth REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN calculated_elevation REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN pop_latency_ms REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN pop_drop_rate REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN currently_obstructed INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN outage_cause TEXT",
-		"ALTER TABLE network_telemetry ADD COLUMN downlink_bps REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN uplink_bps REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN is_snr_persistently_low INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN boresight_azimuth_deg REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN boresight_elevation_deg REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN tilt_angle_deg REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN dl_bandwidth_restricted_reason TEXT",
-		"ALTER TABLE network_telemetry ADD COLUMN ul_bandwidth_restricted_reason TEXT",
-		"ALTER TABLE network_telemetry ADD COLUMN eth_speed_mbps INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN alert_is_heating INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN alert_power_supply_thermal_throttle INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN alert_dish_water_detected INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN alert_router_water_detected INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN alert_no_ethernet_link INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN alert_roaming INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN max_latency_ms REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN min_latency_ms REAL",
-		"ALTER TABLE network_telemetry ADD COLUMN brief_outage_count INTEGER",
-		"ALTER TABLE network_telemetry ADD COLUMN brief_outage_duration_s REAL",
-	} {
-		if _, err := d.db.Exec(col); err != nil && !isDupColumn(err) {
-			return err
+
+	current := 0
+	var raw string
+	if err := d.db.QueryRow(`SELECT value FROM app_config WHERE key='schema_version'`).Scan(&raw); err != nil {
+		if err != sql.ErrNoRows {
+			return fmt.Errorf("read schema_version: %w", err)
+		}
+		// ErrNoRows → first run, current stays 0
+	} else {
+		if v, err := strconv.Atoi(raw); err == nil {
+			current = v
+		}
+	}
+
+	maxVersion := current
+	for _, m := range migrations {
+		if m.version <= current {
+			continue
+		}
+		if _, err := d.db.Exec(m.up); err != nil && !isDupColumn(err) {
+			return fmt.Errorf("migration v%d: %w", m.version, err)
+		}
+		if m.version > maxVersion {
+			maxVersion = m.version
+		}
+	}
+
+	if maxVersion > current {
+		if err := d.SetConfig("schema_version", strconv.Itoa(maxVersion)); err != nil {
+			return fmt.Errorf("write schema_version: %w", err)
 		}
 	}
 	return nil
