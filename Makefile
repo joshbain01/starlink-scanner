@@ -78,7 +78,13 @@ sync-start:
 # Set BOOTSTRAP_BUILD=1 to also attempt binary build.
 bootstrap:
 	@if [ ! -x venv/bin/python ]; then python3.13 -m venv venv; fi
-	venv/bin/pip install -r requirements.lock -r requirements-dev.lock
+	@ARCH="$$(uname -m)"; \
+	PIP_NO_BIN=""; \
+	if [ "$$ARCH" = "aarch64" ]; then \
+		echo "ARM detected ($$ARCH): forcing source install for ast-serialize to avoid wheel hash drift"; \
+		PIP_NO_BIN="--no-binary ast-serialize"; \
+	fi; \
+	venv/bin/pip install $$PIP_NO_BIN -r requirements.lock -r requirements-dev.lock
 	venv/bin/pip install -e . --no-deps
 	mkdir -p cmd/pp-starlink/web/dist
 	@if [ ! -f cmd/pp-starlink/web/dist/index.html ]; then \
