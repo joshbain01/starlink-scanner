@@ -57,7 +57,7 @@ _CAUSE_PLAYBOOK: dict[str, dict[str, list[str]]] = {
             "collect additional directional obstruction samples",
         ],
     },
-    "STARLINK_WAN_ISSUE": {
+    "STARLINK_WAN_OR_POP": {
         "next_checks": [
             "compare local path health versus POP/public degradation",
             "inspect POP latency and drop spikes during incidents",
@@ -69,7 +69,7 @@ _CAUSE_PLAYBOOK: dict[str, dict[str, list[str]]] = {
             "capture escalation bundle for provider ticket",
         ],
     },
-    "PHYSICAL_OBSTRUCTION": {
+    "OBSTRUCTION": {
         "next_checks": [
             "inspect obstruction map bins with repeated incidents",
             "correlate affected az/el bins with physical structures",

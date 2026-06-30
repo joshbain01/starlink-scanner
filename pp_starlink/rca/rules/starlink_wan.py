@@ -22,6 +22,14 @@ ROOT_CAUSE = "STARLINK_WAN_OR_POP"
 
 _DISH_ALERT_STATES = {"SEARCHING", "BOOTING", "OBSTRUCTED", "DEGRADED"}
 
+_CONF_ORDER = ("LOW", "MEDIUM", "HIGH")
+
+
+def _downgrade_confidence(level: str, steps: int = 1) -> str:
+    """Demote confidence by N steps while staying in LOW..HIGH."""
+    idx = _CONF_ORDER.index(level)
+    return _CONF_ORDER[max(0, idx - max(0, steps))]
+
 
 class StarlinkWANRule(RCARule):
     priority = 20
@@ -85,15 +93,36 @@ class StarlinkWANRule(RCARule):
 
         evidence.append("local path clean, no dish state alert")
 
-        missing: list = []
+        missing: list[str] = []
         if local is None:
             missing.append("network.local_path (could not confirm LAN is clean)")
         if dish_state is None:
             missing.append("dish.state (could not rule out dish-level cause)")
 
+        # Calibrate confidence by coverage quality, not only signal presence.
+        confidence = "HIGH" if dish_state is not None and local is not None else "MEDIUM"
+
+        sample_count = len(public_records)
+        degraded_ratio = pub_degraded / sample_count if sample_count else 0.0
+        if sample_count < 3:
+            confidence = _downgrade_confidence(confidence)
+        if degraded_ratio < 0.75:
+            confidence = _downgrade_confidence(confidence)
+
+        # Very short windows with modest loss are suggestive, not decisive.
+        loss_max = float(incident.metrics.get("packet_loss_max") or 0.0)
+        if incident.duration_seconds < 10 and loss_max < 0.5:
+            confidence = _downgrade_confidence(confidence)
+
+        if confidence != "HIGH":
+            evidence.append(
+                f"confidence reduced by sparse/short evidence (samples={sample_count}, "
+                f"degraded_ratio={degraded_ratio:.2f})"
+            )
+
         return {
             "root_cause": ROOT_CAUSE,
-            "confidence": "HIGH" if dish_state is not None and local is not None else "MEDIUM",
+            "confidence": confidence,
             "evidence": evidence,
             "missing_evidence": missing,
         }
