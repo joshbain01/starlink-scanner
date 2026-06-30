@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pp-starlink-rca"
+version = "0.1.0"
+description = "Root-cause analysis tool for Starlink MOS drops"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "mypy>=1.5",
+]
+
+[project.scripts]
+pp-starlink = "pp_starlink.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pp_starlink*"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true

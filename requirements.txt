@@ -1,3 +1,6 @@
 # rtl_power is a C binary (in librtlsdr-dev / rtl-sdr package).
 # No Python RTL-SDR binding needed — we shell out to rtl_power.
 # Only stdlib used; this file is kept for Docker layer caching.
+
+# pp_starlink RCA package dependencies
+click>=8.1

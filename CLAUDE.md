@@ -90,3 +90,17 @@ Runs on a **Raspberry Pi 5 with SD card**. Write frequency is a primary design c
 ## Live dish schema
 
 `schema/dish_schema.txt` is a committed snapshot of the dish's live gRPC reflection output. Regenerate with `make refresh-schema`. The daemon checks for schema drift weekly and logs a warning if the live schema hash differs from the committed snapshot.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles, default label strings. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` files. See `docs/agents/domain.md`.
