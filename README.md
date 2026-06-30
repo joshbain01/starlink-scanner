@@ -12,6 +12,20 @@ This section is the shortest path from clone to a working local environment.
 make bootstrap
 ```
 
+### One-command update + start prep
+
+```bash
+make sync-start
+```
+
+This target pulls `origin/master`, bootstraps/builds the environment, initializes the DB, and prompts for `lat`/`lon` if location is missing.
+
+For non-interactive use:
+
+```bash
+make sync-start LAT=47.6062 LON=-122.3321
+```
+
 This target creates/updates `venv`, installs lockfile dependencies, and installs the package in editable mode.
 
 By default it creates a minimal embedded web placeholder if UI assets are not built yet.

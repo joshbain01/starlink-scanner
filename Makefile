@@ -5,7 +5,30 @@ DISH       := 192.168.100.1:9200
 
 -include .athena/Makefile.inc
 
-.PHONY: bootstrap bootstrap-build bootstrap-check cleanup proto deps build web-build up verify-dish refresh-schema
+.PHONY: sync-start bootstrap bootstrap-build bootstrap-check cleanup proto deps build web-build up verify-dish refresh-schema
+
+# One-command update + environment start prep.
+# - pulls latest origin/master (ff-only)
+# - bootstraps and builds binaries
+# - initializes DB schema
+# - configures observer location (interactive if missing)
+#
+# Optional non-interactive location override:
+#   make sync-start LAT=47.6062 LON=-122.3321
+sync-start:
+	git pull --ff-only origin master
+	$(MAKE) bootstrap BOOTSTRAP_BUILD=1
+	./bin/pp-starlink init
+	@echo "Location setup:"; \
+	if [ -n "$(LAT)" ] && [ -n "$(LON)" ]; then \
+		./bin/pp-starlink set-location --lat "$(LAT)" --lon "$(LON)"; \
+	else \
+		echo "Enter observer coordinates:"; \
+		printf "Latitude: "; read -r LAT_IN; \
+		printf "Longitude: "; read -r LON_IN; \
+		./bin/pp-starlink set-location --lat "$$LAT_IN" --lon "$$LON_IN"; \
+	fi
+	@echo "sync-start complete. Next: ./bin/pp-starlink status --json && ./bin/pp-starlink daemon"
 
 # One-command local bootstrap for developers and agents.
 # Creates/updates venv and installs lockfile deps.

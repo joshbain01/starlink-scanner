@@ -4,6 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Fast command map
 
+One-command update + start prep (pull + bootstrap + init + location setup):
+
+```bash
+make sync-start
+```
+
+Non-interactive location setup:
+
+```bash
+make sync-start LAT=47.6062 LON=-122.3321
+```
+
 One-command bootstrap (venv + deps):
 
 ```bash
@@ -74,6 +86,12 @@ Run e2e smoke test (requires live dish):
 ## Start sequence after bootstrap
 
 This is the full local start sequence after cloning.
+
+Shortcut:
+
+```bash
+make sync-start
+```
 
 1. Setup environment:
 

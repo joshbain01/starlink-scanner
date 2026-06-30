@@ -8,6 +8,18 @@ Implement safe, reviewable changes quickly, and verify behavior with the repo's 
 
 ## Fast command map
 
+One-command update + start prep (pull + bootstrap + init + location setup):
+
+```bash
+make sync-start
+```
+
+Non-interactive location setup:
+
+```bash
+make sync-start LAT=47.6062 LON=-122.3321
+```
+
 One-command bootstrap (venv + deps):
 
 ```bash
