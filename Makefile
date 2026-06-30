@@ -80,11 +80,16 @@ bootstrap:
 	@if [ ! -x venv/bin/python ]; then python3.13 -m venv venv; fi
 	@ARCH="$$(uname -m)"; \
 	PIP_NO_BIN=""; \
+	DEV_LOCK="requirements-dev.lock"; \
 	if [ "$$ARCH" = "aarch64" ]; then \
-		echo "ARM detected ($$ARCH): forcing source install for ast-serialize to avoid wheel hash drift"; \
-		PIP_NO_BIN="--no-binary ast-serialize"; \
+		echo "ARM detected ($$ARCH): applying ast-serialize bootstrap workaround"; \
+		DEV_LOCK="/tmp/requirements-dev.no-ast.lock"; \
+		grep -v '^ast-serialize==0.5.0' requirements-dev.lock > "$$DEV_LOCK"; \
 	fi; \
-	venv/bin/pip install $$PIP_NO_BIN -r requirements.lock -r requirements-dev.lock
+	venv/bin/pip install $$PIP_NO_BIN -r requirements.lock -r "$$DEV_LOCK"; \
+	if [ "$$ARCH" = "aarch64" ]; then \
+		venv/bin/pip install --no-deps ast-serialize==0.5.0; \
+	fi
 	venv/bin/pip install -e . --no-deps
 	mkdir -p cmd/pp-starlink/web/dist
 	@if [ ! -f cmd/pp-starlink/web/dist/index.html ]; then \
