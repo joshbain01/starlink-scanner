@@ -810,13 +810,85 @@ func cmdPredictWindow(cfg Config) {
 	}
 
 	fmt.Printf("## Predicted drop risk windows (next %d min)\n", mins)
-	fmt.Println("| Start | End | Satellite | Az (°) | El (°) |")
-	fmt.Println("|-------|-----|-----------|--------|--------|")
+	fmt.Println("| Start | End | Satellite | Az (°) | El (°) | Pred MOS | Rationale |")
+	fmt.Println("|-------|-----|-----------|--------|--------|----------|-----------|")
 	for _, w := range windows {
-		fmt.Printf("| %s | %s | %-20s | %6.1f | %6.1f |\n",
+		mos, rationale := predictWindowMOS(w, buckets)
+		fmt.Printf("| %s | %s | %-20s | %6.1f | %6.1f | %8.2f | %s |\n",
 			w.Start.Format("15:04:05"), w.End.Format("15:04:05"),
-			w.SatID, w.Azimuth, w.Elevation)
+			w.SatID, w.Azimuth, w.Elevation, mos, rationale)
 	}
+}
+
+func predictWindowMOS(w orbit.RiskWindow, buckets []db.SpatialBucket) (float64, string) {
+	const (
+		azTol = 5.0
+		elTol = 2.5
+	)
+
+	matched := make([]db.SpatialBucket, 0, 4)
+	closest := buckets[0]
+	bestDist := math.MaxFloat64
+	for _, b := range buckets {
+		dAz := math.Abs(w.Azimuth - b.AzBucket)
+		dEl := math.Abs(w.Elevation - b.ElBucket)
+		dist := dAz/azTol + dEl/elTol
+		if dist < bestDist {
+			bestDist = dist
+			closest = b
+		}
+		if dAz <= azTol && dEl <= elTol {
+			matched = append(matched, b)
+		}
+	}
+
+	if len(matched) == 0 {
+		matched = append(matched, closest)
+	}
+
+	weightTotal := 0.0
+	weightedLoss := 0.0
+	evidence := 0
+	for _, b := range matched {
+		wgt := float64(b.Incidents)
+		if wgt < 1 {
+			wgt = 1
+		}
+		weightTotal += wgt
+		weightedLoss += b.AvgLoss * wgt
+		evidence += b.Incidents
+	}
+	if weightTotal > 0 {
+		weightedLoss /= weightTotal
+	}
+
+	windowMins := w.End.Sub(w.Start).Minutes() + 1
+	if windowMins < 1 {
+		windowMins = 1
+	}
+
+	lossRisk := weightedLoss
+	evidenceRisk := 0.15 * math.Min(1.0, float64(evidence)/20.0)
+	durationRisk := 0.10 * math.Min(1.0, windowMins/5.0)
+	elevationRisk := 0.25 * ((90.0 - w.Elevation) / 90.0)
+	totalRisk := math.Min(1.0, math.Max(0.0, lossRisk+evidenceRisk+durationRisk+elevationRisk))
+
+	mos := 4.9 - (3.4 * totalRisk)
+	if mos < 1.0 {
+		mos = 1.0
+	}
+	if mos > 5.0 {
+		mos = 5.0
+	}
+
+	rationale := fmt.Sprintf(
+		"hist loss %.0f%% across %d incidents; pass el %.1f deg; window %.0f min",
+		weightedLoss*100,
+		evidence,
+		w.Elevation,
+		windowMins,
+	)
+	return mos, rationale
 }
 
 func fmtDB(v *float64) string {
