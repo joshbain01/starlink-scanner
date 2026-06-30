@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 from pp_starlink.core.models import ContextSignal, Incident, SignalRecord
 from pp_starlink.rca.rules.base import RCARule
 from pp_starlink.rca.rules.bufferbloat import BufferbloatRule
+from pp_starlink.rca.rules.dish_health import DishHealthRule
 from pp_starlink.rca.rules.dish_reacq import DishReacquisitionRule
 from pp_starlink.rca.rules.local_lan import LocalLANRule
 from pp_starlink.rca.rules.obstruction import ObstructionRule
@@ -34,6 +35,7 @@ _DEFAULT_RULES: List[RCARule] = [
     LocalLANRule(),
     RebootRule(),
     DishReacquisitionRule(),
+    DishHealthRule(),
     RFInterferenceRule(),
     StarlinkWANRule(),
     ObstructionRule(),

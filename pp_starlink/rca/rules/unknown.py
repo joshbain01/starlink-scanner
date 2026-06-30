@@ -19,9 +19,11 @@ ROOT_CAUSE = "UNKNOWN"
 _EXPECTED_SIGNALS = [
     "dish.state",
     "dish.reboot",
+    "dish.health",
     "network.local_path",
     "network.public_path",
     "network.routing",
+    "rf.environment",
     "weather.hourly",
     "obstruction",
     "load",

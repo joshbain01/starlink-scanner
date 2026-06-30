@@ -31,6 +31,7 @@ from pp_starlink.reports.formatter import (
     incidents_to_json,
 )
 from pp_starlink.signals.dish_reboot import DishRebootModule
+from pp_starlink.signals.dish_health import DishHealthModule
 from pp_starlink.signals.dish_state import DishStateModule
 from pp_starlink.signals.load import LoadModule
 from pp_starlink.signals.network_local import NetworkLocalModule
@@ -54,6 +55,7 @@ def _build_registry(db_path: str) -> SignalRegistry:
     modules = [
         DishStateModule(db_path),
         DishRebootModule(db_path),
+        DishHealthModule(db_path),
         NetworkLocalModule(db_path),
         NetworkPublicModule(db_path),
         NetworkRoutingModule(db_path),

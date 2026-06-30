@@ -57,6 +57,18 @@ _CAUSE_PLAYBOOK: dict[str, dict[str, list[str]]] = {
             "collect additional directional obstruction samples",
         ],
     },
+    "DISH_HEALTH_OR_TERMINAL": {
+        "next_checks": [
+            "inspect thermal/water/roaming alert timelines around incidents",
+            "verify bandwidth-restriction reasons and frequency",
+            "check Ethernet link stability and negotiated speed",
+        ],
+        "immediate_actions": [
+            "stabilize power and thermal conditions at dish/router",
+            "inspect for moisture ingress and connector integrity",
+            "capture focused health telemetry before and during next event",
+        ],
+    },
     "STARLINK_WAN_OR_POP": {
         "next_checks": [
             "compare local path health versus POP/public degradation",
