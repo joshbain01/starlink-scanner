@@ -12,6 +12,7 @@ type Config struct {
 	DBPath        string
 	TLECacheFile  string
 	GrpcurlPath   string
+	EnableDishGPS bool
 	Interval      time.Duration
 	LossThreshold float64
 	SNRDelta      float64
@@ -27,6 +28,7 @@ func Load() Config {
 		DBPath:        envStr("DB_PATH", "/data/starlink_telemetry.db"),
 		TLECacheFile:  envStr("STARLINK_TLE_CACHE", "/tmp/starlink_current.tle"),
 		GrpcurlPath:   envStr("GRPCURL_PATH", detectGrpcurl()),
+		EnableDishGPS: boolEnv("STARLINK_ENABLE_DISH_LOCATION", false),
 		Interval:      15 * time.Second,
 		LossThreshold: floatEnv("STARLINK_LOSS_THRESHOLD", 0.05),
 		SNRDelta:      floatEnv("STARLINK_SNR_DELTA", 3.0),
@@ -58,4 +60,19 @@ func floatEnv(key string, def float64) float64 {
 		}
 	}
 	return def
+}
+
+func boolEnv(key string, def bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	switch v {
+	case "1", "true", "TRUE", "yes", "YES", "on", "ON":
+		return true
+	case "0", "false", "FALSE", "no", "NO", "off", "OFF":
+		return false
+	default:
+		return def
+	}
 }

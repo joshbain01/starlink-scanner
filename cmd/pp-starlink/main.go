@@ -77,11 +77,14 @@ func cmdStatus(cfg Config) {
 		statErr, infoErr, histErr, locErr error
 		wg                                sync.WaitGroup
 	)
-	wg.Add(4)
+	wg.Add(3)
 	go func() { defer wg.Done(); mu.Lock(); status, statErr = sc.GetStatus(ctx); mu.Unlock() }()
 	go func() { defer wg.Done(); mu.Lock(); info, infoErr = sc.GetDeviceInfo(ctx); mu.Unlock() }()
 	go func() { defer wg.Done(); mu.Lock(); history, histErr = sc.GetHistory(ctx); mu.Unlock() }()
-	go func() { defer wg.Done(); mu.Lock(); location, locErr = sc.GetLocation(ctx); mu.Unlock() }()
+	if cfg.EnableDishGPS {
+		wg.Add(1)
+		go func() { defer wg.Done(); mu.Lock(); location, locErr = sc.GetLocation(ctx); mu.Unlock() }()
+	}
 	wg.Wait()
 
 	if statErr != nil {
@@ -93,7 +96,7 @@ func cmdStatus(cfg Config) {
 	if histErr != nil {
 		log.Printf("GetHistory: %v (continuing)", histErr)
 	}
-	if locErr != nil {
+	if cfg.EnableDishGPS && locErr != nil {
 		log.Printf("GetLocation: %v (continuing)", locErr)
 	}
 
@@ -659,6 +662,8 @@ COMMANDS
     Every 15 s: queries the dish gRPC API, pings gateway/POP/public DNS,
     computes satellite look-angles (if location is set), and writes
     telemetry to the database.
+		Dish GPS location RPC is disabled by default; enable only if policy allows:
+			STARLINK_ENABLE_DISH_LOCATION=1
 
   insights [--compact]
     Analyse packet-loss events from the last 30 days.
@@ -771,6 +776,9 @@ func cmdDaemon(cfg Config) {
 	defer c.Close()
 
 	log.Printf("daemon started, interval=%s", cfg.Interval)
+	if !cfg.EnableDishGPS {
+		log.Printf("dish location RPC disabled (set STARLINK_ENABLE_DISH_LOCATION=1 to enable)")
+	}
 	tick := time.NewTicker(cfg.Interval)
 	defer tick.Stop()
 	for range tick.C {

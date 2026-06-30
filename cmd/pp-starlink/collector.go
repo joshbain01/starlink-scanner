@@ -22,13 +22,14 @@ import (
 // daemon loop. Reconnection, TLE refresh, DB maintenance, and sample assembly
 // are all inside; the caller holds no collection state of its own.
 type Collector struct {
-	d            *db.DB
-	dishAddr     string
-	tleCacheFile string
-	grpcurlPath  string
-	targets      [3]string // [gateway, POP, public]; empty slot = skip
-	lat, lon     float64
-	hasObs       bool
+	d             *db.DB
+	dishAddr      string
+	tleCacheFile  string
+	grpcurlPath   string
+	targets       [3]string // [gateway, POP, public]; empty slot = skip
+	lat, lon      float64
+	hasObs        bool
+	enableDishGPS bool
 
 	sc        *starlink.Client
 	grpcFails int
@@ -59,15 +60,16 @@ type Collector struct {
 // initial dial is not fatal — it will be retried on the first Tick.
 func NewCollector(d *db.DB, cfg Config, targets [3]string, lat, lon float64, hasObs bool) *Collector {
 	c := &Collector{
-		d:            d,
-		dishAddr:     cfg.DishAddr,
-		tleCacheFile: cfg.TLECacheFile,
-		grpcurlPath:  cfg.GrpcurlPath,
-		targets:      targets,
-		popIP:        targets[1],
-		lat:          lat,
-		lon:          lon,
-		hasObs:       hasObs,
+		d:             d,
+		dishAddr:      cfg.DishAddr,
+		tleCacheFile:  cfg.TLECacheFile,
+		grpcurlPath:   cfg.GrpcurlPath,
+		targets:       targets,
+		popIP:         targets[1],
+		lat:           lat,
+		lon:           lon,
+		hasObs:        hasObs,
+		enableDishGPS: cfg.EnableDishGPS,
 	}
 	c.dial()
 	c.retryPolicy = retry.ConsecutiveFailures{N: 3}
@@ -301,7 +303,7 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 	}()
 
 	// Best-effort location fetch: back off when dish policy blocks access.
-	if !now.Before(c.locationRetryAfter) {
+	if c.enableDishGPS && !now.Before(c.locationRetryAfter) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

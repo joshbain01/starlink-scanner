@@ -62,11 +62,14 @@ func cmdServe(cfg Config) {
 			statErr, infoErr, histErr, locErr error
 			wg                                sync.WaitGroup
 		)
-		wg.Add(4)
+		wg.Add(3)
 		go func() { defer wg.Done(); mu.Lock(); status, statErr = sc.GetStatus(ctx); mu.Unlock() }()
 		go func() { defer wg.Done(); mu.Lock(); info, infoErr = sc.GetDeviceInfo(ctx); mu.Unlock() }()
 		go func() { defer wg.Done(); mu.Lock(); history, histErr = sc.GetHistory(ctx); mu.Unlock() }()
-		go func() { defer wg.Done(); mu.Lock(); location, locErr = sc.GetLocation(ctx); mu.Unlock() }()
+		if cfg.EnableDishGPS {
+			wg.Add(1)
+			go func() { defer wg.Done(); mu.Lock(); location, locErr = sc.GetLocation(ctx); mu.Unlock() }()
+		}
 		wg.Wait()
 
 		if statErr != nil {
@@ -79,7 +82,7 @@ func cmdServe(cfg Config) {
 		if histErr != nil {
 			log.Printf("serve /api/status GetHistory: %v (continuing)", histErr)
 		}
-		if locErr != nil {
+		if cfg.EnableDishGPS && locErr != nil {
 			log.Printf("serve /api/status GetLocation: %v (continuing)", locErr)
 		}
 
