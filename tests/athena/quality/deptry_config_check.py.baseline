@@ -1,0 +1,5 @@
+# source:   athena
+# purpose:  Deptry config validation -- ensures deptry configuration uses
+#           supported syntax.
+# baseline: One line per config error. Empty output means config is valid.
+# columns:  file	check	pattern	detail

@@ -1,0 +1,10 @@
+# source:   athena
+# purpose:  Type checking -- reports violations, inline type: ignore/pyright:
+#           ignore suppressions, and file-level directives as unified pyright
+#           debt.
+# baseline: Known type-checking debt (violations + suppressions). New entries
+#           cause a test failure until fixed or added here.
+# columns:  file	scope	rule	status	message
+pp_starlink/rca/rules/dish_reacq.py	DishReacquisitionRule.evaluate	reportArgumentType	violation	Argument of type "set[Any | None]" cannot be assigned to parameter "iterable" of type "Iterable[SupportsRichComparisonT@sorted]" in function "sorted"
+pp_starlink/rca/rules/routing.py	RoutingRule.evaluate	reportArgumentType	violation	Argument of type "list[Any | None]" cannot be assigned to parameter "iterable" of type "Iterable[SupportsRichComparisonT@max]" in function "max"
+pp_starlink/rca/rules/routing.py	RoutingRule.evaluate	reportArgumentType	violation	Argument of type "list[Any | None]" cannot be assigned to parameter "iterable" of type "Iterable[SupportsRichComparisonT@min]" in function "min"

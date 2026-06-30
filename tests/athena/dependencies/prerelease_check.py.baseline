@@ -1,0 +1,7 @@
+# source:   athena
+# purpose:  Pre-release lock detection -- flags dependencies pinned to alpha,
+#           beta, rc, or dev versions in lockfiles.
+# baseline: Known pre-release pins that have been reviewed and accepted. New
+#           pre-release pins cause a test failure until the package is updated
+#           or the entry is added here.
+# columns:  lockfile	package	version	pre_type

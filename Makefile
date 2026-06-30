@@ -3,6 +3,8 @@ GEN_DIR    := proto/device
 GRPCURL    := $(shell which grpcurl 2>/dev/null || echo $$HOME/go/bin/grpcurl)
 DISH       := 192.168.100.1:9200
 
+-include .athena/Makefile.inc
+
 .PHONY: proto deps build web-build up verify-dish refresh-schema
 
 # Pull live descriptor from dish to confirm field numbers still match:

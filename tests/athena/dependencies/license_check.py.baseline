@@ -1,0 +1,7 @@
+# source:   athena
+# purpose:  License compliance -- checks every dependency against the
+#           allowed/denied policy in [tool.athena.licenses]. Full roster is in
+#           the SBOM; this check outputs only violations.
+# baseline: License violations that need review. Empty means all licenses comply
+#           with the project policy.
+# columns:  package	spdx

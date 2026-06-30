@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Import cycle detection -- static AST analysis finds circular import
+#           chains across the codebase.
+# baseline: Known import cycles that have been reviewed and accepted. New cycles
+#           cause a test failure until resolved or added here.
+# columns:  file	line	cycle

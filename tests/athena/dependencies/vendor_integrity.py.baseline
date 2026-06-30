@@ -1,0 +1,7 @@
+# source:   athena
+# purpose:  Vendored package integrity -- validates [tool.athena.vendor],
+#           vendor.lock, and tree-hash consistency for the resolved closure of
+#           offline-bundled packages.
+# baseline: Problems only. Empty baseline means the vendored closure is
+#           consistent.
+# columns:  package	version	check	detail

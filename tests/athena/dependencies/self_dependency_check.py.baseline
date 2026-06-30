@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Athena self-dependency integrity -- verifies all athena transitives
+#           are importable.
+# baseline: Empty. Any findings indicate missing packages in the project
+#           lockfile.
+# columns:  package	status	detail

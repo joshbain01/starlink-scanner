@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Lockfile superset property -- verifies each group lockfile contains
+#           all packages from the core lockfile.
+# baseline: One line per missing package. Empty output means all group lockfiles
+#           are supersets of core.
+# columns:  lockfile	check	package	detail

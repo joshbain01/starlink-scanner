@@ -1,0 +1,19 @@
+# source:   athena
+# purpose:  Ruff lint -- reports violations and inline noqa suppressions as
+#           unified ruff debt.
+# baseline: Known ruff debt (violations + suppressions). New entries cause a
+#           test failure until fixed or added here.
+# columns:  file	scope	rule	status	message
+pp_starlink/cli/main.py	<module>	F401	violation	`datetime.datetime` imported but unused
+pp_starlink/cli/main.py	<module>	F401	violation	`datetime.timezone` imported but unused
+pp_starlink/cli/main.py	<module>	F401	violation	`pp_starlink.core.models.ContextSignal` imported but unused
+pp_starlink/cli/main.py	<module>	F401	violation	`typing.Optional` imported but unused
+pp_starlink/incidents/detector.py	<module>	F401	violation	`typing.Optional` imported but unused
+pp_starlink/rca/engine.py	<module>	F401	violation	`typing.Any` imported but unused
+pp_starlink/rca/rules/reboot.py	<module>	F401	violation	`datetime.timezone` imported but unused
+pp_starlink/signals/dish_reboot.py	<module>	F401	violation	`typing.Any` imported but unused
+pp_starlink/signals/dish_state.py	<module>	F401	violation	`typing.Any` imported but unused
+pp_starlink/signals/weather_daily.py	<module>	F401	violation	`pp_starlink.core.models.SignalRecord` imported but unused
+pp_starlink/signals/weather_hourly.py	<module>	F401	violation	`pp_starlink.core.models.SignalRecord` imported but unused
+pp_starlink/telemetry/reader.py	<module>	F401	violation	`typing.Iterator` imported but unused
+rf_listener.py	<module>	F401	violation	`re` imported but unused

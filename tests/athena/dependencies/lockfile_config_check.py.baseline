@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Lockfile config hygiene -- flags declared lockfiles that don't exist
+#           and stale excludes.
+# baseline: Empty when config is in sync with disk. Findings indicate stale
+#           config entries.
+# columns:  file	finding	detail

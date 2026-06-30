@@ -1,0 +1,24 @@
+# Athena CI -- calls the reusable workflow from MetroStar/athena.
+#
+# Prerequisites:
+#   Org-level secrets ATHENA_APP_CLIENT_ID and ATHENA_APP_PRIVATE_KEY
+#   must be configured from a GitHub App with read-only Contents
+#   access to MetroStar/athena.
+
+name: Athena
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  athena:
+    uses: MetroStar/athena/.github/workflows/athena-ci.yml@v4.3.1
+    with:
+      python-version: "3.12"
+    secrets:
+      client-id: ${{ secrets.ATHENA_APP_CLIENT_ID }}
+      app-private-key: ${{ secrets.ATHENA_APP_PRIVATE_KEY }}

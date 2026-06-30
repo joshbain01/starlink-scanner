@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  Notice when .athena/Makefile.inc has drifted behind
+# baseline: Empty means the consumer's Makefile.inc matches the
+# columns:  filepath	location	message	detail

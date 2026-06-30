@@ -1,0 +1,5 @@
+# source:   athena
+# purpose:  Stub replaceability -- queries PyPI for official types-*
+#           replacements of custom stubs.
+# baseline: Custom stubs that have official PyPI replacements available.
+# columns:  stub	types_package	latest_version

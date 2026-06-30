@@ -1,0 +1,7 @@
+# source:   athena
+# purpose:  Lockfile integrity -- validates declared dependencies exist in
+#           lockfiles, pinned versions satisfy constraints, extras are
+#           preserved, no self-references, no deptry globs, all entries include
+#           SHA-256 hashes, and dev lockfile is a superset of core.
+# baseline: One line per violation. See header for violation types.
+# columns:  lockfile	check	package	detail

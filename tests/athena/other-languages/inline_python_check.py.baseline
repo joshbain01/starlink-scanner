@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Detect Python code embedded in YAML run blocks that should be
+#           extracted to scripts.
+# baseline: Known inline Python invocations. New entries mean new untestable
+#           inline code was added.
+# columns:  file	-	pattern	snippet

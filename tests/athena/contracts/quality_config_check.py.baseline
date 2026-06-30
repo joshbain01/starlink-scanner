@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Quality config surface -- records active ruff rule selection and
+#           pyright mode so config relaxation is caught by baseline diff.
+# baseline: Current quality config. Changes indicate rules were added or
+#           removed.
+# columns:  section	key	value

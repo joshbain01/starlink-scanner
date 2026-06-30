@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  Init config hygiene -- detects pyproject.toml drift that
+# baseline: Empty means config is healthy.
+# columns:  filepath	location	message	detail

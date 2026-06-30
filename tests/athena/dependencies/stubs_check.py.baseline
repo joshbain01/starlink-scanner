@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Type stubs integrity -- validates stubs.txt manifest against the
+#           stubs/ directory, detects version staleness, and flags orphaned
+#           typings.
+# baseline: Stale, missing, or orphaned stub entries that need attention.
+# columns:  issue_type	package	issue_detail

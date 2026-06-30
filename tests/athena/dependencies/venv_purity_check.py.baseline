@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Venv purity -- detects installed packages not justified by any
+#           lockfile, VCS dependency, or venv builtin.
+# baseline: Extra packages in the venv. Empty means venv matches lockfiles
+#           exactly.
+# columns:  file	line	violation

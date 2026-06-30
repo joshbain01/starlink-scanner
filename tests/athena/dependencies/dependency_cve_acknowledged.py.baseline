@@ -1,0 +1,8 @@
+# source:   athena
+# purpose:  Acknowledged vulnerability tracking -- records CVEs with no
+#           available fix. Standard mode forces review when the set changes (fix
+#           released or new no-fix CVE disclosed).
+# baseline: Known unfixable CVEs. Changes here mean either a fix was released
+#           (remove the line and patch) or a new unfixable CVE appeared (review
+#           and accept).
+# columns:  cve	package	version	fix_or_status

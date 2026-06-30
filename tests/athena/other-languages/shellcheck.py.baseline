@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Shell script linting -- runs shellcheck on .sh files and scripts
+#           with shell shebangs.
+# baseline: Known shellcheck findings. New findings cause a test failure until
+#           fixed or added here.
+# columns:  file	rule	message

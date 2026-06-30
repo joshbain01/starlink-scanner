@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Entry point drift detection -- flags vestigial athena-routed scripts
+#           in pyproject.toml.
+# baseline: Empty. Any findings indicate stale athena entry points that athena
+#           upgrade can remove.
+# columns:  entry_point	status	detail

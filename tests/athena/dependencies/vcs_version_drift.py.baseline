@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  VCS version drift -- detects when installed VCS packages
+# baseline: Empty means all VCS deps match their declared pins.
+# columns:  package	pinned_ref	installed_version	violation

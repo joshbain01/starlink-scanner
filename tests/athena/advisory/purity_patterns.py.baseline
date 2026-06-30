@@ -1,0 +1,5 @@
+# source:   athena
+# purpose:  Purity heuristic -- detect functions with impure side effects.
+# baseline: Advisory findings. Changes are tracked but never block CI
+#           (informational mode).
+# columns:  file	location	signal	detail

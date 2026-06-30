@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Package verification -- verifies installed packages match lockfile
+#           pins and RECORD hashes.
+# baseline: Verification failures indicating version mismatches, tampering, or
+#           missing packages.
+# columns:  type	package	detail

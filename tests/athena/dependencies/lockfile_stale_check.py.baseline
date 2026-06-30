@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  Stale lockfile detection -- flags lockfiles on disk
+# baseline: Empty means all lockfiles are accounted for.
+# columns:  filename	detail

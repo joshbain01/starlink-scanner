@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Tool invocation hygiene -- Python-packaged tools must be invoked via
+#           sys.executable -m, not PATH probes.
+# baseline: Empty. Any finding indicates a check resolving a python module
+#           through shutil.which or a bare command name.
+# columns:  check	tool	resolution

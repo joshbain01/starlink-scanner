@@ -1,0 +1,161 @@
+# athena.toml — project quality and dependency management configuration.
+#
+# This file configures the athena baseline test framework.  Each section
+# is documented with its purpose and sensible defaults.  Customize to
+# match your project's needs.
+#
+# Docs: https://github.com/MetroStar/athena
+# Generate this file: athena upgrade --migrate
+
+# ─── Core settings ──────────────────────────────────────────────────────────
+
+# Directories to include in quality analysis (package sources + tests).
+# include = ["src", "tests"]
+
+# Directories to exclude from analysis.
+# exclude = ["venv", "dist", "build", "output"]
+
+# Lockfile paths relative to project root.
+# lockfiles = ["requirements.lock", "requirements-dev.lock"]
+
+# Directory containing baseline test files (.py + .baseline pairs).
+checks-dir = "tests/athena"
+
+# ─── Pip floor ──────────────────────────────────────────────────────────────
+# Minimum pip version enforced in every venv athena creates.  Athena ships a
+# built-in floor; set a higher value here to pin a newer pip across the team.
+# athena upgrade offers to raise this automatically when a newer pip is available.
+#
+# [pip]
+# floor = "26.1.1"
+
+# ─── Tool versions ──────────────────────────────────────────────────────────
+# Declare expected tool versions.  Athena checks these at build time
+# and reports drift.  Replaces .tool-versions files.
+#
+# [tools]
+# terraform = "1.15.3"
+# nodejs = "22.22.3"
+# shellcheck = "0.11.0"
+
+# ─── Local packages ─────────────────────────────────────────────────────────
+# Monorepo-local packages athena editable-installs (--no-deps) during
+# `athena venv`.  Each is treated as first-party for dependency-confusion,
+# allowlisted in the venv-purity check, and (if `modules` is set) checked
+# against [tool.deptry.package_module_name_map].  Paths are relative to the
+# project root.
+#
+# [[packages.local]]
+# name = "my-service"          # distribution name
+# path = "apps/my-service"     # directory (relative to project root)
+# modules = ["my_service"]     # import name(s); enables the deptry mapping check
+
+# ─── Licenses ───────────────────────────────────────────────────────────────
+# SPDX license policy.  Packages with licenses not in `allowed` and not
+# explicitly `reviewed` cause findings.  `denied` always fails regardless
+# of other settings.
+
+[licenses]
+allowed = [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "PSF-2.0",
+    "Unlicense",
+    "Zlib",
+]
+denied = []
+
+# Packages whose licenses were manually reviewed and accepted.
+# Format: package-name = "LICENSE-ID -- justification"
+[licenses.reviewed]
+
+# ─── Check modes ────────────────────────────────────────────────────────────
+# Checks can operate in different enforcement modes:
+#
+#   standard      — FAIL when output differs from baseline (default)
+#   ratchet       — ERROR when findings INCREASE (can only get better)
+#   invariant     — ERROR on ANY findings (must be clean, -b blocked)
+#   frozen        — ERROR on ANY change in either direction (-b blocked)
+#   informational — always PASS, output recorded but never blocks
+
+# Checks that must have zero findings.  Any output is ERROR.
+# Use for security-critical checks where regressions must block the build.
+[invariants]
+include = [
+    "dependencies/dependency_confusion",
+    "dependencies/dependency_cve_check",
+    "dependencies/lockfile_pin_check",
+    "dependencies/vendor_integrity",
+    "quality/secret_scan",
+]
+
+# Checks that can only improve (fewer findings), never regress.
+# Use directory patterns (trailing /) to ratchet entire categories.
+[ratchets]
+include = [
+    "quality/",
+    "dependencies/",
+    "other-languages/",
+]
+
+# Checks whose output is recorded but never blocks the build.
+# [informational]
+# include = ["advisory/"]
+
+# Checks whose baselines are locked -- any change (better or worse) is ERROR.
+# Updating requires removing from this list, running -b, then re-adding.
+# REQUIRES HUMAN APPROVAL to update.
+[frozen]
+include = []
+
+# ─── Trust boundary ─────────────────────────────────────────────────────────
+# Controls which checks run in-process vs isolated subprocess.
+#   scope = "builtins" — only athena's own checks run in-process (default)
+#   scope = "all"      — any check with entry() runs in-process
+#   scope = "none"     — everything runs in subprocess (maximum isolation)
+#
+# Checks listed in `exclude` ALWAYS run in subprocess regardless of scope.
+# Include checks that shell out to external tools or perform network I/O.
+
+[trust]
+scope = "builtins"
+exclude = [
+    "quality/ruff_check",
+    "quality/pyright_check",
+    "dependencies/dependency_cve_check",
+    "dependencies/dependency_confusion",
+]
+
+# ─── Manifests ──────────────────────────────────────────────────────────────
+# Manifest checks record the total population alongside findings,
+# giving context (e.g. "3 of 47 packages have license issues").
+#
+# `always` — manifest written every run (even when no findings)
+# `triggered` — manifest written only when findings exist
+
+[manifests]
+always = [
+    "dependencies/license_check",
+    "dependencies/vendor_integrity",
+]
+triggered = [
+    "dependencies/stubs_check",
+]
+
+# ─── CI ─────────────────────────────────────────────────────────────────────
+# CI workflow generation settings (used by athena upgrade).
+#
+# [ci]
+# python-version = "3.13"
+# python-versions = ["3.12", "3.13"]
+# strict = true
+# working-directory = ""
+
+[ci]
+python-version = "3.12"

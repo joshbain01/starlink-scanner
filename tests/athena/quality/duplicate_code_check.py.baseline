@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Duplicate code detection -- finds structurally identical function
+#           bodies via AST fingerprinting.
+# baseline: Known duplicate pairs that have been reviewed and accepted. New
+#           duplicates cause a test failure until refactored or added here.
+# columns:  file_a	func_a	file_b	func_b	body_stmts

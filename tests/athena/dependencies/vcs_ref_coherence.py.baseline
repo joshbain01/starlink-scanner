@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  VCS ref coherence -- detects conflicting version tags
+# baseline: Empty means all VCS refs are consistent.
+# columns:  package	ref_a	ref_b	detail

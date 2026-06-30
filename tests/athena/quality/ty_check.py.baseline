@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  ty type checking -- evaluates Astral's Rust-based type checker
+#           against the codebase.
+# baseline: Known ty findings. Compare against pyright_check to assess coverage
+#           parity.
+# columns:  file	scope	rule	status	message

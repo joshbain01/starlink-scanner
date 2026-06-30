@@ -1,0 +1,33 @@
+# source:   athena
+# purpose:  Athena project hygiene -- detect shadowed checks, dangerous
+#           gitignore patterns.
+# baseline: Advisory findings. Informational mode -- never blocks CI.
+# columns:  category	location	detail
+promotable-ratchet	dependencies/dependency_cve_acknowledged	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/license_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/lockfile_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/lockfile_config_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/lockfile_freshness_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/lockfile_stale_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/lockfile_superset_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/prerelease_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/self_dependency_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/sidecar_integrity	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/stubs_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/stubs_replaceable	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/vcs_python_requires	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/vcs_ref_coherence	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/vcs_version_drift	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/vendor_closure_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	dependencies/venv_purity_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	other-languages/inline_python_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	other-languages/shell_inline_python_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	other-languages/shellcheck	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	quality/dead_code_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	quality/deptry_config_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	quality/duplicate_code_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	quality/frozen_dataclass_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	quality/import_cycle_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	quality/init_weight_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	quality/test_hygiene_check	ratchet has zero findings -- promote to invariant	
+promotable-ratchet	quality/ty_check	ratchet has zero findings -- promote to invariant	

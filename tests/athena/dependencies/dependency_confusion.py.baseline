@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Dependency confusion detection -- verifies internal packages are
+#           installed from local/known sources, not PyPI.
+# baseline: Findings indicate an internal package resolved from an unexpected
+#           source.
+# columns:  package	status	detail

@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  Athena version consistency -- detects when installed athena
+# baseline: Empty means installed version matches declared version.
+# columns:  filepath	location	message	detail

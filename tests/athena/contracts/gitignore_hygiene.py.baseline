@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  Gitignore hygiene -- verifies .gitignore has the
+# baseline: Empty means .gitignore is correctly configured.
+# columns:  issue	detail

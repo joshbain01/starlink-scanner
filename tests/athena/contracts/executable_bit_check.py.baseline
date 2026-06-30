@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Executable bit coherence -- detects shebang/git-mode mismatches that
+#           cause CI-only ruff EXE001/EXE002 failures.
+# baseline: Empty. Any findings indicate files whose git mode must be fixed.
+# columns:  file	violation
+rf_listener.py		shebang_not_executable	has shebang but git mode is 100644 (needs: git update-index --chmod=+x)

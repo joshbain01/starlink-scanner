@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Detects __init__.py files with class/function/constant definitions
+#           that should live in dedicated submodules.
+# baseline: Known overstuffed __init__.py files. New findings indicate
+#           definitions that should be moved to submodules.
+# columns:  file	location	message

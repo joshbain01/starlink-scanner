@@ -1,0 +1,11 @@
+# source:   athena
+# purpose:  Lockfile install version drift -- compares >= floors in
+#           pyproject.toml against lockfile pins. Reports deps where the lock
+#           has drifted far ahead of the declared minimum.
+# baseline: Current drift state. Changes indicate new drift or bumped floors
+#           requiring acknowledgment.
+# columns:  lockfile	package	drift_type	drift_count	floor	lock_version
+requirements-dev.lock	click	DRIFT	3	8.1	8.4.2
+requirements-dev.lock	mypy	MAJOR	1	1.5	2.1.0
+requirements-dev.lock	pytest	MAJOR	2	7.0	9.1.1
+requirements.lock	click	DRIFT	3	8.1	8.4.2

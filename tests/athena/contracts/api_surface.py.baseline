@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Public API surface discovery -- enumerates all symbols exported from
+#           package __init__.py files via __all__ or top-level imports.
+# baseline: The full API surface. Changes indicate added, removed, or renamed
+#           exports requiring explicit acknowledgment.
+# columns:  module	source	symbol	kind

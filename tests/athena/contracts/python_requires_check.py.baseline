@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  Python interpreter suitability -- verifies the running
+# baseline: Empty means a suitable interpreter is available.
+# columns:  constraint	current_version	detail

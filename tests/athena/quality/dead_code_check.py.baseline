@@ -1,0 +1,7 @@
+# source:   athena
+# purpose:  Dead code detection -- finds unreferenced functions, classes, and
+#           constants across the codebase via AST cross-reference.
+# baseline: Known unused symbols that have been reviewed and accepted (e.g.
+#           public API stubs, callback targets). New dead code causes a test
+#           failure until removed or added here.
+# columns:  file	symbol	kind

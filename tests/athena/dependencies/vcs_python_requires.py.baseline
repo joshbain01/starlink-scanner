@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  VCS Python version compatibility -- detects when VCS
+# baseline: Empty means all VCS deps are compatible.
+# columns:  package	requires_python	violation	detail

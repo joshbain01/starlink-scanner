@@ -1,0 +1,8 @@
+# source:   athena
+# purpose:  Dependency hygiene -- runs deptry to detect missing, obsolete,
+#           transitive, and misplaced dev dependencies.
+# baseline: Known dependency issues that have been reviewed and accepted. New
+#           issues cause a test failure until fixed or added here.
+# columns:  file	code	module	message
+pyproject.toml	DEP002	mypy	'mypy' defined as a dependency but not used in the codebase
+pyproject.toml	DEP002	pytest	'pytest' defined as a dependency but not used in the codebase

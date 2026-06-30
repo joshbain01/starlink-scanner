@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "content_hash": "1f47a35f0ef27e70be12823f8aced0897e0e2756aba2835369b14ed9504ba5dc",
+  "provenance": {
+    "athena_version": "4.3.1",
+    "pip_version": "26.1.2",
+    "python_version": "3.13.14",
+    "git_sha": "02a30ca",
+    "timestamp": "2026-06-30"
+  },
+  "targets": [
+    "manylinux2014_x86_64/cp312",
+    "manylinux2014_x86_64/cp313",
+    "manylinux_2_28_x86_64/cp312",
+    "manylinux_2_28_x86_64/cp313",
+    "macosx_11_0_arm64/cp312",
+    "macosx_11_0_arm64/cp313",
+    "macosx_13_0_arm64/cp312",
+    "macosx_13_0_arm64/cp313",
+    "macosx_14_0_arm64/cp312",
+    "macosx_14_0_arm64/cp313",
+    "win_amd64/cp312",
+    "win_amd64/cp313"
+  ],
+  "groups": [
+    {
+      "label": "core",
+      "lockfile": "requirements.lock",
+      "lockfile_sha256": "1b64ba65af4514cb602babe1e6e4f24aa796323b27ab5876bf8d03419b9f09d7",
+      "packages": 1
+    },
+    {
+      "label": "dev",
+      "lockfile": "requirements-dev.lock",
+      "lockfile_sha256": "f81736b9090f1500f702dde345a06f58a37c5efb25805b18efd48fc9cb5f1f7d",
+      "packages": 12
+    }
+  ],
+  "athena_dependencies": [
+    "build",
+    "coverage",
+    "deptry",
+    "hypothesis",
+    "py-spy",
+    "pyright[nodejs]",
+    "python-hcl2",
+    "ruff",
+    "ty"
+  ],
+  "signature": null
+}

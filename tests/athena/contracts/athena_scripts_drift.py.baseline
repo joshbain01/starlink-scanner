@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  Notice when .athena/ bootstrap scripts have drifted
+# baseline: Empty means every managed script matches the
+# columns:  filepath	location	message	detail

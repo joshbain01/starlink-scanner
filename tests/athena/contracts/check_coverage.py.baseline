@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Builtin check coverage -- ensures every active athena check is run
+#           or explicitly excluded.
+# baseline: Empty. Any findings indicate checks that need a baseline or an
+#           exclusion.
+# columns:  check	status	resolution

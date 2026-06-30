@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Test hygiene -- scans baseline test files for convention violations
+#           (non-ASCII, bare asserts, future annotations, missing hypothesis
+#           profile).
+# baseline: Findings list. Empty means all test files comply with conventions.
+# columns:  file	line	violation

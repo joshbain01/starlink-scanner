@@ -1,0 +1,5 @@
+# source:   athena
+# purpose:  Vendor closure invariant -- every Requires-Dist edge from a vendored
+#           package must resolve inside vendor.lock.
+# baseline: Empty. Any missing transitive dep promotes the check to ERROR.
+# columns:  package	version	check	detail

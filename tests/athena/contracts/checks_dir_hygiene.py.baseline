@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Checks directory hygiene -- prevents underscore-prefixed files that
+#           would be invisible to the check enumerator.
+# baseline: Empty. Any findings indicate files that must be moved to a proper
+#           module outside checks/.
+# columns:  file	violation

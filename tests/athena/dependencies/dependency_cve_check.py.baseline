@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Actionable vulnerability scanning -- queries OSV.dev for fixable
+#           CVEs in direct and vendored dependencies. Blocks the build until
+#           patched.
+# baseline: Must be empty. Any fixable CVE must be patched before merging.
+# columns:  cve	package	version	fix

@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  CI workflow drift detection -- ensures athena.yml matches expected
+#           content from config.
+# baseline: Empty. Any findings indicate workflow drift that athena upgrade can
+#           repair.
+# columns:  file status	detail

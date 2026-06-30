@@ -1,0 +1,5 @@
+# source:   athena
+# purpose:  Ban stdlib venv.create() -- only python -m venv via subprocess is
+#           allowed.
+# baseline: Empty. Any finding means production code uses the banned API.
+# columns:  file	line	call

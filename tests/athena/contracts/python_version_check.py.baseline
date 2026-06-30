@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Verify python-versions, requires-python, and classifiers are
+#           consistent.
+# baseline: Empty output when consistent. Findings when not.
+# columns:  source	version	issue
+python-versions	(not configured)	recommend specifying python-versions for explicit hash targets	

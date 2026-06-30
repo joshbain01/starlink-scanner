@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  Lockfile freshness -- validates sidecar exists, content-hash
+# baseline: Empty means lockfiles are fresh.
+# columns:  filename	category	detail

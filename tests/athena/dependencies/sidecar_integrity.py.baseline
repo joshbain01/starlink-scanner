@@ -1,0 +1,4 @@
+# source:   athena
+# purpose:  Lock sidecar integrity -- validates athena.lock freshness,
+# baseline: Empty means sidecar is valid and consistent.
+# columns:  category	detail

@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Verify [[packages.local]] modules are mapped in deptry's
+#           package_module_name_map.
+# baseline: One line per unmapped local package module. Empty output means the
+#           deptry map is aligned.
+# columns:  package	module	detail

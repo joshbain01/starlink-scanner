@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Frozen dataclass invariants -- detects patterns that undermine
+#           immutability in @dataclass(frozen=True) classes.
+# baseline: Known violations that have been reviewed and accepted. New
+#           violations cause a test failure until fixed or added here.
+# columns:  file	class	violation

@@ -1,0 +1,6 @@
+# source:   athena
+# purpose:  Type specificity heuristic -- detect opportunities to move up/down
+#           the sum/product type stacks.
+# baseline: Advisory findings. Changes are tracked but never block CI
+#           (informational mode).
+# columns:  file	direction	pattern	location	detail

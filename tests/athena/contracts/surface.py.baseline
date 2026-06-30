@@ -1,0 +1,5 @@
+# source:   athena
+# purpose:  Operational surface baseline -- CLI entry points and their roles.
+# baseline: All CLI entry points with module paths. Drift means surface changed.
+# columns:  command	module	scope
+pp-starlink	pp_starlink.cli.main:main	entry_point	

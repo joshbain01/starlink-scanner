@@ -1,0 +1,8 @@
+# BEGIN ATHENA MANAGED
+.athena/output/
+*.egg-info/
+dist/
+.coverage
+htmlcov/
+.hypothesis/constants/
+# END ATHENA MANAGED
