@@ -60,6 +60,8 @@ class StarlinkWANRule(RCARule):
         if pub_degraded == 0:
             return None
 
+        local_records = []
+        local_degraded = 0
         # Local path must be clean (or absent — give benefit of doubt)
         if local is not None:
             local_records = local.records_in_window(incident.start_time, incident.end_time)
@@ -67,6 +69,7 @@ class StarlinkWANRule(RCARule):
             if local_degraded > len(local_records) * 0.3:
                 return None  # local path also degraded → LocalLANRule territory
 
+        state_records = []
         # Dish state must not show alerting mode
         if dish_state is not None:
             state_records = dish_state.records_in_window(incident.start_time, incident.end_time)
@@ -76,6 +79,7 @@ class StarlinkWANRule(RCARule):
             if alert_states:
                 return None  # dish-level issue → different rule
 
+        reboot_records = []
         # No reboot during incident
         if dish_reboot is not None:
             reboot_records = dish_reboot.records_in_window(incident.start_time, incident.end_time)
@@ -83,6 +87,18 @@ class StarlinkWANRule(RCARule):
                 return None
 
         evidence = [f"public path degraded in {pub_degraded}/{len(public_records)} samples"]
+
+        max_public_loss = max(float(r.value.get("public_packet_loss") or 0.0) for r in public_records)
+        max_public_lat = max(float(r.value.get("pop_latency_ms") or 0.0) for r in public_records)
+        max_public_drop = max(float(r.value.get("pop_drop_rate") or 0.0) for r in public_records)
+        max_public_jitter = max(float(r.value.get("pop_jitter_ms") or 0.0) for r in public_records)
+        evidence.append(
+            "public metric peaks: "
+            f"loss={max_public_loss*100:.1f}%, "
+            f"pop_latency={max_public_lat:.0f}ms, "
+            f"pop_drop={max_public_drop*100:.1f}%, "
+            f"pop_jitter={max_public_jitter:.1f}ms"
+        )
 
         loss_events = [
             r for r in public_records
@@ -117,7 +133,35 @@ class StarlinkWANRule(RCARule):
         if trigger_parts:
             evidence.append("public-side triggers: " + "; ".join(trigger_parts))
 
-        evidence.append("local path clean, no dish state alert")
+        if local is None:
+            evidence.append("local path unavailable in-window")
+        else:
+            local_jitter_vals = [
+                float(r.value.get("local_jitter_ms") or 0.0)
+                for r in local_records
+                if r.value.get("local_jitter_ms") is not None
+            ]
+            local_jitter_peak = max(local_jitter_vals) if local_jitter_vals else 0.0
+            evidence.append(
+                f"local path clean in-window: degraded={local_degraded}/{len(local_records)}, "
+                f"local_jitter_peak={local_jitter_peak:.1f}ms"
+            )
+
+        if dish_state is None:
+            evidence.append("dish state unavailable in-window")
+        else:
+            observed_states = sorted({str(r.value.get("state") or "UNKNOWN") for r in state_records})
+            evidence.append(
+                f"dish state corroboration: no alert states in {len(state_records)} samples "
+                f"(states={','.join(observed_states)})"
+            )
+
+        if dish_reboot is None:
+            evidence.append("reboot signal unavailable in-window")
+        else:
+            evidence.append(
+                f"reboot corroboration: no reboot events in {len(reboot_records)} samples"
+            )
 
         missing: list[str] = []
         if local is None:
