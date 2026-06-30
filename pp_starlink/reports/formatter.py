@@ -150,6 +150,8 @@ _CONFIDENCE_SCORE = {
     None: 0,
 }
 
+_CLUSTER_GAP_SECONDS = 300
+
 
 def _root_cause_key(incident: Incident) -> str:
     return (incident.root_cause or "UNKNOWN").strip().upper().replace(" ", "_")
@@ -202,6 +204,91 @@ def _fmt_ts(ts: str) -> str:
         return dt.isoformat()
     except Exception:
         return ts
+
+
+def _parse_ts(ts: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(ts)
+    except Exception:
+        return None
+
+
+def _loss_bucket(incident: Incident) -> str:
+    loss = float(incident.metrics.get("packet_loss_max") or 0.0) * 100.0
+    if loss >= 80.0:
+        return "loss_80_100"
+    if loss >= 40.0:
+        return "loss_40_79"
+    if loss >= 20.0:
+        return "loss_20_39"
+    if loss >= 10.0:
+        return "loss_10_19"
+    return "loss_00_09"
+
+
+def _duration_bucket(incident: Incident) -> str:
+    dur = int(incident.duration_seconds or 0)
+    if dur < 10:
+        return "dur_00_09s"
+    if dur < 30:
+        return "dur_10_29s"
+    if dur < 120:
+        return "dur_30_119s"
+    return "dur_120s_plus"
+
+
+def _incident_signature(incident: Incident) -> tuple[str, str, str, str, str]:
+    return (
+        incident.root_cause or "UNKNOWN",
+        incident.confidence or "UNKNOWN",
+        _severity_label(_severity_score(incident)),
+        _loss_bucket(incident),
+        _duration_bucket(incident),
+    )
+
+
+def _build_recurrence_clusters(incidents: list[Incident]) -> list[dict[str, Any]]:
+    ordered = sorted(incidents, key=lambda inc: inc.start_time)
+    clusters: list[dict[str, Any]] = []
+
+    for inc in ordered:
+        sig = _incident_signature(inc)
+        start_dt = _parse_ts(inc.start_time)
+        end_dt = _parse_ts(inc.end_time) or start_dt
+
+        matched = False
+        if start_dt is not None and end_dt is not None:
+            for c in reversed(clusters):
+                if c["signature"] != sig:
+                    continue
+                gap = (start_dt - c["last_end"]).total_seconds()
+                if gap <= _CLUSTER_GAP_SECONDS:
+                    c["count"] += 1
+                    c["last_end"] = max(c["last_end"], end_dt)
+                    c["max_severity"] = max(c["max_severity"], _severity_score(inc))
+                    c["incident_ids"].append(inc.id)
+                    matched = True
+                    break
+
+        if not matched:
+            if start_dt is None:
+                start_dt = datetime.min.replace(tzinfo=timezone.utc)
+            if end_dt is None:
+                end_dt = start_dt
+            clusters.append(
+                {
+                    "signature": sig,
+                    "first_start": start_dt,
+                    "last_end": end_dt,
+                    "count": 1,
+                    "max_severity": _severity_score(inc),
+                    "incident_ids": [inc.id],
+                }
+            )
+
+    clusters = [c for c in clusters if c["count"] > 1]
+    clusters.sort(key=lambda c: (c["count"], c["max_severity"]), reverse=True)
+    return clusters
 
 
 def format_incident(incident: Incident, index: Optional[int] = None) -> str:
@@ -322,6 +409,19 @@ def format_report(incidents: List[Incident], title: str = "Starlink RCA Report")
         for item, count in missing.most_common(8):
             header_lines.append(f"  - {item} ({count})")
 
+    clusters = _build_recurrence_clusters(ranked)
+    if clusters:
+        header_lines.append("\nRecurring Incident Clusters (dedup lens):")
+        for idx, c in enumerate(clusters[:8], start=1):
+            cause, conf_level, sev_label, loss_bucket, dur_bucket = c["signature"]
+            start_s = c["first_start"].isoformat()
+            end_s = c["last_end"].isoformat()
+            examples = ", ".join(c["incident_ids"][:3])
+            header_lines.append(
+                f"  {idx}. {cause} x{c['count']} [{conf_level}, {sev_label}, {loss_bucket}, {dur_bucket}] "
+                f"window={start_s}..{end_s} examples={examples}"
+            )
+
     # Worst day
     day_counts: Counter = Counter()
     for inc in ranked:
@@ -375,6 +475,7 @@ def incidents_to_ai_bundle_json(
     severity = Counter(_severity_label(_severity_score(inc)) for inc in ranked)
     missing = Counter(m for inc in ranked for m in inc.missing_evidence)
     signals = Counter(s for inc in ranked for s in inc.signals)
+    clusters = _build_recurrence_clusters(ranked)
 
     window_start = min((inc.start_time for inc in ranked), default=None)
     window_end = max((inc.end_time for inc in ranked), default=None)
@@ -407,6 +508,22 @@ def incidents_to_ai_bundle_json(
             "confidence_distribution": dict(confidence),
             "severity_distribution": dict(severity),
             "signal_coverage": dict(signals),
+            "unique_recurrence_clusters": len(clusters),
+            "recurrence_clusters": [
+                {
+                    "root_cause": c["signature"][0],
+                    "confidence": c["signature"][1],
+                    "severity_label": c["signature"][2],
+                    "loss_bucket": c["signature"][3],
+                    "duration_bucket": c["signature"][4],
+                    "count": c["count"],
+                    "window_start": c["first_start"].isoformat(),
+                    "window_end": c["last_end"].isoformat(),
+                    "example_incident_ids": c["incident_ids"][:5],
+                    "max_severity_score": round(c["max_severity"], 1),
+                }
+                for c in clusters[:20]
+            ],
             "top_missing_evidence": [
                 {"item": item, "count": count}
                 for item, count in missing.most_common(12)
