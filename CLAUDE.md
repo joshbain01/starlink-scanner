@@ -174,11 +174,20 @@ docker compose logs -f rf-listener
 venv/bin/athena test tests/athena
 ```
 
+MANDATORY GATE: Do not commit or push unless this Athena command passes.
+If Athena fails, fix the failure first and re-run until it passes.
+
 10. If local artifacts are messy or stale:
 
 ```bash
 make cleanup
 ```
+
+## Commit/push gate
+
+- Never commit or push when Athena is failing.
+- Required command before commit/push: `venv/bin/athena test tests/athena`.
+- If Athena reports FAIL/ERROR, fix the code or configuration and re-run until PASS.
 
 There are no unit tests beyond the e2e binary. go test ./... may find little or no tests.
 

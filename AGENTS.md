@@ -123,8 +123,16 @@ Toolchains required by build:
 2. Make a minimal targeted code change.
 3. Run the narrowest validation first (command, check, or binary).
 4. Run Athena checks before finishing.
-5. If expected output changes, update only the required baselines.
-6. Keep commits focused and easy to review.
+5. Mandatory gate: do not commit or push unless `venv/bin/athena test tests/athena` passes.
+6. If Athena fails, fix the issue first, then re-run Athena until it passes.
+7. If expected output changes, update only the required baselines.
+8. Keep commits focused and easy to review.
+
+## Commit/push gate
+
+- Never commit or push when Athena is failing.
+- Required command before commit/push: `venv/bin/athena test tests/athena`.
+- If Athena reports FAIL/ERROR, fix the code or config and re-run until PASS.
 
 ## Validation matrix
 

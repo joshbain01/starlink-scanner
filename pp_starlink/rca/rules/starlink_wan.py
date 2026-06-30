@@ -21,6 +21,10 @@ from pp_starlink.rca.rules.base import RCARule
 ROOT_CAUSE = "STARLINK_WAN_OR_POP"
 
 _DISH_ALERT_STATES = {"SEARCHING", "BOOTING", "OBSTRUCTED", "DEGRADED"}
+_LOSS_THRESHOLD = 0.05
+_POP_LAT_THRESHOLD_MS = 200.0
+_POP_DROP_THRESHOLD = 0.05
+_POP_JITTER_THRESHOLD_MS = 20.0
 
 _CONF_ORDER = ("LOW", "MEDIUM", "HIGH")
 
@@ -78,18 +82,40 @@ class StarlinkWANRule(RCARule):
             if any(r.value.get("reboot") for r in reboot_records):
                 return None
 
-        evidence = [
-            f"public path degraded in {pub_degraded}/{len(public_records)} samples",
+        evidence = [f"public path degraded in {pub_degraded}/{len(public_records)} samples"]
+
+        loss_events = [
+            r for r in public_records
+            if float(r.value.get("public_packet_loss") or 0.0) > _LOSS_THRESHOLD
+        ]
+        lat_events = [
+            r for r in public_records
+            if float(r.value.get("pop_latency_ms") or 0.0) > _POP_LAT_THRESHOLD_MS
+        ]
+        pop_drop_events = [
+            r for r in public_records
+            if float(r.value.get("pop_drop_rate") or 0.0) > _POP_DROP_THRESHOLD
+        ]
+        pop_jitter_events = [
+            r for r in public_records
+            if float(r.value.get("pop_jitter_ms") or 0.0) > _POP_JITTER_THRESHOLD_MS
         ]
 
-        # Add latency evidence
-        high_lat = [
-            r for r in public_records
-            if r.value.get("pop_latency_ms") and r.value["pop_latency_ms"] > 200
-        ]
-        if high_lat:
-            max_lat = max(r.value["pop_latency_ms"] for r in high_lat)
-            evidence.append(f"peak POP latency={max_lat:.0f}ms")
+        trigger_parts: list[str] = []
+        if loss_events:
+            max_loss = max(float(r.value.get("public_packet_loss") or 0.0) for r in loss_events)
+            trigger_parts.append(f"loss>{_LOSS_THRESHOLD*100:.0f}% in {len(loss_events)}/{len(public_records)} (max={max_loss*100:.1f}%)")
+        if lat_events:
+            max_lat = max(float(r.value.get("pop_latency_ms") or 0.0) for r in lat_events)
+            trigger_parts.append(f"POP latency>{_POP_LAT_THRESHOLD_MS:.0f}ms in {len(lat_events)}/{len(public_records)} (max={max_lat:.0f}ms)")
+        if pop_drop_events:
+            max_drop = max(float(r.value.get("pop_drop_rate") or 0.0) for r in pop_drop_events)
+            trigger_parts.append(f"POP drop>{_POP_DROP_THRESHOLD*100:.0f}% in {len(pop_drop_events)}/{len(public_records)} (max={max_drop*100:.1f}%)")
+        if pop_jitter_events:
+            max_jitter = max(float(r.value.get("pop_jitter_ms") or 0.0) for r in pop_jitter_events)
+            trigger_parts.append(f"POP jitter>{_POP_JITTER_THRESHOLD_MS:.0f}ms in {len(pop_jitter_events)}/{len(public_records)} (max={max_jitter:.1f}ms)")
+        if trigger_parts:
+            evidence.append("public-side triggers: " + "; ".join(trigger_parts))
 
         evidence.append("local path clean, no dish state alert")
 
@@ -106,13 +132,24 @@ class StarlinkWANRule(RCARule):
         degraded_ratio = pub_degraded / sample_count if sample_count else 0.0
         if sample_count < 3:
             confidence = _downgrade_confidence(confidence)
+            missing.append("network.public_path sparse window coverage (<3 samples)")
         if degraded_ratio < 0.75:
             confidence = _downgrade_confidence(confidence)
+            missing.append("public degradation not consistent across window")
 
         # Very short windows with modest loss are suggestive, not decisive.
         loss_max = float(incident.metrics.get("packet_loss_max") or 0.0)
         if incident.duration_seconds < 10 and loss_max < 0.5:
             confidence = _downgrade_confidence(confidence)
+            missing.append("short/low-loss window (additional recurrence evidence needed)")
+
+        routing = signals.get("network.routing")
+        if routing is None or not routing.records_in_window(incident.start_time, incident.end_time):
+            missing.append("network.routing corroboration in incident window")
+
+        rf_env = signals.get("rf.environment")
+        if rf_env is None or not rf_env.records_in_window(incident.start_time, incident.end_time):
+            missing.append("rf.environment corroboration in incident window")
 
         if confidence != "HIGH":
             evidence.append(

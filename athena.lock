@@ -5,7 +5,7 @@
     "athena_version": "4.3.1",
     "pip_version": "26.1.2",
     "python_version": "3.13.14",
-    "git_sha": "f3fcea9",
+    "git_sha": "4c1b45c",
     "timestamp": "2026-06-30"
   },
   "targets": [
