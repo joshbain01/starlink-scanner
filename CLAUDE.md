@@ -234,6 +234,24 @@ Two separate data collectors write to a shared SQLite database (`/data/starlink_
 | `DB_PATH` | `/data/starlink_telemetry.db` | Shared database path (Python + Go must agree) |
 | `RF_CENTER_HZ` / `RF_BW_HZ` | `1575 MHz / 4 MHz` | RTL-SDR tune frequency; adjust for your LNB IF |
 
+## Call quality (MOS) troubleshooting
+
+"MOS" appears in two unrelated places — don't conflate them when triaging a voice/video complaint:
+
+- **`predict-window`** (`predictWindowMOS` in `cmd/pp-starlink/main.go:900`) is *forward-looking* only — a 1.0–5.0 score for an upcoming satellite pass, derived from historical packet loss in that az/el bucket + elevation + window duration. It has no jitter or live-call input and cannot explain a call that already happened.
+- **Past incidents have no MOS field.** `Incident.metrics` (`pp_starlink/incidents/detector.py`) only carries `packet_loss_max`, `jitter_max`, `latency_max`. To judge whether a *given* incident likely degraded or dropped a call, reason from those three fields against standard VoIP impairment bands:
+
+| Metric | Good | Audible degradation | Likely call-breaking |
+|---|---|---|---|
+| Latency (one-way) | <150ms | 150–300ms | >300ms |
+| Jitter | <20ms | 20–50ms | >50ms |
+| Packet loss | <1% | 1–5% (artifacts) | >5% (dropped words/frozen video) |
+
+  `latency_max` is round-trip (`internal/ping` parses `rtt min/avg/max/mdev`, not one-way) — halve it before comparing to the one-way bands above.
+
+- Match the dominant metric to the RCA rule that explains it: jitter-dominant with low loss → `bufferbloat.py` (audio garbled/choppy, call stays connected). Loss-spike-dominant → `obstruction.py` or `rf_interference.py` (frozen video, dropped words, brief call drops). Sustained loss/no connectivity → `starlink_wan.py` / `dish_health.py` (call fully drops).
+- `network_telemetry` pings three targets (gateway, POP, public DNS) independently — compare which one shows the spike to localize the problem to the LAN, the dish/WAN hop, or downstream routing before blaming the dish.
+
 ## Hardware
 
 Runs on a **Raspberry Pi 5 with SD card**. Write frequency is a primary design constraint — SD cards have limited write endurance.
