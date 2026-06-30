@@ -16,6 +16,15 @@ dev = [
     "pytest>=7",
     "mypy>=1.5",
 ]
+# Not a real pip extra -- .athena/fetch_wheel.py regex-reads this line as the
+# single source of truth for which athena wheel to download from GitHub
+# Releases. Version must match athena.lock's provenance.athena_version and
+# .github/workflows/athena.yml's pinned tag, or athena's own version-drift
+# check fails. Kept out of `dev` so `pip install -e ".[dev]"` never tries to
+# resolve this private git URL.
+athena = [
+    "metrostar-athena @ git+https://github.com/MetroStar/athena.git@v4.3.1",
+]
 
 [project.scripts]
 pp-starlink = "pp_starlink.cli.main:main"
