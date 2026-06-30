@@ -2,6 +2,118 @@
 
 Agent-native network + RF diagnostics for Starlink. Correlates packet drops and jitter spikes with dish telemetry, RF signal quality, and satellite look-angles in a single SQL query so an AI agent can diagnose the root cause in one execution loop.
 
+## Developer quickstart
+
+This section is the shortest path from clone to a working local environment.
+
+### One-command bootstrap
+
+```bash
+make bootstrap
+```
+
+This target creates/updates `venv`, installs lockfile dependencies, and installs the package in editable mode.
+
+By default it creates a minimal embedded web placeholder if UI assets are not built yet.
+
+To also attempt binary build during bootstrap:
+
+```bash
+make bootstrap BOOTSTRAP_BUILD=1
+```
+
+To include web asset build as part of bootstrap:
+
+```bash
+make bootstrap BOOTSTRAP_BUILD=1 BOOTSTRAP_WEB=1
+```
+
+### One-command cleanup
+
+```bash
+make cleanup
+```
+
+Removes local generated artifacts (`bin`, `web/node_modules`, `.athena/output`, `__pycache__`) and restores tracked cache files.
+
+### 1) System prerequisites
+
+- Python 3.12+
+- Go toolchain
+- Node.js + npm (used by `make build` for web assets)
+- Docker + Docker Compose (for production-like runs)
+- System packages:
+	- `protobuf-compiler`
+	- `grpcurl`
+	- `traceroute`
+	- `iputils-ping`
+	- `rtl-sdr` (for RF listener / `rtl_power`)
+
+### 2) Create a Python venv and install dependencies
+
+```bash
+python3.13 -m venv venv
+venv/bin/pip install -r requirements.lock -r requirements-dev.lock
+venv/bin/pip install -e . --no-deps
+```
+
+### 3) Build binaries
+
+```bash
+make build
+```
+
+This generates:
+
+- `bin/pp-starlink`
+- `bin/e2e`
+
+### 4) Run locally
+
+```bash
+./bin/pp-starlink init
+./bin/pp-starlink status --json
+./bin/pp-starlink set-location --lat 47.6062 --lon -122.3321
+./bin/pp-starlink daemon
+```
+
+In another terminal:
+
+```bash
+./bin/pp-starlink insights --compact
+./bin/pp-starlink predict-window --duration 60
+```
+
+### 5) Run with Docker Compose
+
+```bash
+docker compose up --build -d
+docker compose logs -f pp-starlink-engine
+docker compose logs -f rf-listener
+```
+
+### 6) Run tests and checks
+
+Athena baseline suite:
+
+```bash
+venv/bin/athena test tests/athena
+```
+
+Update baselines after intentional changes:
+
+```bash
+venv/bin/athena test -b tests/athena
+```
+
+Live-dish smoke test:
+
+```bash
+./bin/e2e
+```
+
+`go test ./...` is expected to find little or no unit-test coverage in this repo.
+
 ---
 
 ## How it works
@@ -102,6 +214,15 @@ Creates the database schema and applies SQLite tuning pragmas. Safe to re-run.
 
 ```bash
 pp-starlink init
+```
+
+### `pp-starlink status [--json]`
+
+Fetches live dish status (without running the daemon). Useful for quick health checks and debugging proto drift.
+
+```bash
+pp-starlink status
+pp-starlink status --json
 ```
 
 ### `pp-starlink set-location --lat <float> --lon <float>`

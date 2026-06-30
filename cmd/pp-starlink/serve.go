@@ -105,19 +105,19 @@ func cmdServe(cfg Config) {
 			DishID                      string       `json:"dish_id"`
 			HardwareVersion             string       `json:"hardware_version"`
 			SoftwareVersion             string       `json:"software_version"`
-			Bootcount                   int          `json:"bootcount"`
-			UptimeS                     int64        `json:"uptime_s"`
-			BoresightAzimuthDeg         float64      `json:"boresight_azimuth_deg"`
-			BoresightElevationDeg       float64      `json:"boresight_elevation_deg"`
-			TiltAngleDeg                float64      `json:"tilt_angle_deg"`
-			AttitudeUncertaintyDeg      float64      `json:"attitude_uncertainty_deg"`
+			Bootcount                   int32        `json:"bootcount"`
+			UptimeS                     uint64       `json:"uptime_s"`
+			BoresightAzimuthDeg         float32      `json:"boresight_azimuth_deg"`
+			BoresightElevationDeg       float32      `json:"boresight_elevation_deg"`
+			TiltAngleDeg                float32      `json:"tilt_angle_deg"`
+			AttitudeUncertaintyDeg      float32      `json:"attitude_uncertainty_deg"`
 			IsSnrAboveNoiseFloor        bool         `json:"is_snr_above_noise_floor"`
 			IsSnrPersistentlyLow        bool         `json:"is_snr_persistently_low"`
-			POPLatencyMs                float64      `json:"pop_latency_ms"`
-			POPDropRate                 float64      `json:"pop_drop_rate"`
-			DownlinkBps                 float64      `json:"downlink_bps"`
-			UplinkBps                   float64      `json:"uplink_bps"`
-			EthSpeedMbps                int          `json:"eth_speed_mbps"`
+			POPLatencyMs                float32      `json:"pop_latency_ms"`
+			POPDropRate                 float32      `json:"pop_drop_rate"`
+			DownlinkBps                 float32      `json:"downlink_bps"`
+			UplinkBps                   float32      `json:"uplink_bps"`
+			EthSpeedMbps                int32        `json:"eth_speed_mbps"`
 			IsCellDisabled              bool         `json:"is_cell_disabled"`
 			DLBandwidthRestrictedReason string       `json:"dl_bandwidth_restricted_reason"`
 			ULBandwidthRestrictedReason string       `json:"ul_bandwidth_restricted_reason"`

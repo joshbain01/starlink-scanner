@@ -5,7 +5,58 @@ DISH       := 192.168.100.1:9200
 
 -include .athena/Makefile.inc
 
-.PHONY: proto deps build web-build up verify-dish refresh-schema
+.PHONY: bootstrap bootstrap-build bootstrap-check cleanup proto deps build web-build up verify-dish refresh-schema
+
+# One-command local bootstrap for developers and agents.
+# Creates/updates venv and installs lockfile deps.
+# Set BOOTSTRAP_BUILD=1 to also attempt binary build.
+bootstrap:
+	@if [ ! -x venv/bin/python ]; then python3.13 -m venv venv; fi
+	venv/bin/pip install -r requirements.lock -r requirements-dev.lock
+	venv/bin/pip install -e . --no-deps
+	mkdir -p cmd/pp-starlink/web/dist
+	@if [ ! -f cmd/pp-starlink/web/dist/index.html ]; then \
+		echo '<!doctype html><html><body><h1>pp-starlink</h1><p>UI not built. Run make web-build.</p></body></html>' > cmd/pp-starlink/web/dist/index.html; \
+	fi
+	@if [ "$(BOOTSTRAP_BUILD)" = "1" ]; then \
+		$(MAKE) bootstrap-build; \
+	fi
+	@if [ "$(BOOTSTRAP_BUILD)" = "1" ]; then \
+		echo "Bootstrap complete: venv ready and binaries built."; \
+	else \
+		echo "Bootstrap complete: venv ready. Set BOOTSTRAP_BUILD=1 to also build binaries."; \
+	fi
+
+# Strict build target for local binaries.
+bootstrap-build:
+	go mod download
+	go mod tidy
+	go build -o bin/pp-starlink ./cmd/pp-starlink
+	go build -o bin/e2e ./cmd/e2e
+	@if [ "$(BOOTSTRAP_WEB)" = "1" ]; then $(MAKE) web-build; fi
+	@echo "Build complete: bin/pp-starlink and bin/e2e"
+
+# Optional stricter bootstrap that also validates the Athena baseline suite.
+bootstrap-check: bootstrap
+	@if [ -x venv/bin/athena ]; then \
+		venv/bin/athena test tests/athena; \
+	else \
+		echo "Athena CLI is not installed in venv. Install it, then run: venv/bin/athena test tests/athena"; \
+		exit 1; \
+	fi
+
+# One-command cleanup for local generated artifacts.
+# Safe for source files: restores only tracked __pycache__ artifacts and
+# removes common local build outputs.
+cleanup:
+	rm -rf bin
+	rm -rf web/node_modules
+	rm -rf .athena/output
+	find . -type d -name "__pycache__" -prune -exec rm -rf {} +
+	@if [ -d .git ]; then \
+		git ls-files -z '*/__pycache__/*.pyc' | xargs -0 -r git restore --; \
+	fi
+	@echo "Cleanup complete: removed local artifacts and restored tracked cache files."
 
 # Pull live descriptor from dish to confirm field numbers still match:
 #   make verify-dish
