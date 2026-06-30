@@ -7,6 +7,7 @@ Commands:
   report        Print or export a formatted RCA report.
   incident      List stored incidents.
   signals list  List registered signals and their status.
+    signals-list  Alias for signals list.
 """
 
 from __future__ import annotations
@@ -298,12 +299,7 @@ def signals() -> None:
     """Signal management commands."""
 
 
-@signals.command("list")
-@click.pass_context
-def signals_list(ctx: click.Context) -> None:
-    """List all registered signals and their record counts."""
-    db_path = ctx.obj["db"]
-
+def _print_signals_list(db_path: str) -> None:
     click.echo(f"Collecting signals from {db_path} ...")
     registry = _build_registry(db_path)
 
@@ -321,6 +317,22 @@ def signals_list(ctx: click.Context) -> None:
             f"{sig_id:<35} {sig.source:<25} {sig.resolution:<12} "
             f"{len(sig.records):>8} {q_str}"
         )
+
+
+@signals.command("list")
+@click.pass_context
+def signals_list(ctx: click.Context) -> None:
+    """List all registered signals and their record counts."""
+    db_path = ctx.obj["db"]
+    _print_signals_list(db_path)
+
+
+@cli.command("signals-list")
+@click.pass_context
+def signals_list_alias(ctx: click.Context) -> None:
+    """Alias for `signals list` shown in top-level help output."""
+    db_path = ctx.obj["db"]
+    _print_signals_list(db_path)
 
 
 def main() -> None:
