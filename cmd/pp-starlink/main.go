@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -11,6 +12,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"sync"
 	"time"
 
@@ -678,6 +680,15 @@ func mustDB(path string) *db.DB {
 }
 
 func cmdDaemon(cfg Config) {
+	lockFile, lockPath, err := acquireDaemonLock(cfg.DBPath)
+	if err != nil {
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			log.Fatalf("daemon already running for db %s (lock: %s)", cfg.DBPath, lockPath)
+		}
+		log.Fatalf("daemon lock error (%s): %v", lockPath, err)
+	}
+	defer releaseDaemonLock(lockFile)
+
 	d := mustDB(cfg.DBPath)
 	defer d.Close()
 
@@ -711,6 +722,31 @@ func cmdDaemon(cfg Config) {
 	for range tick.C {
 		c.Tick(context.Background())
 	}
+}
+
+func acquireDaemonLock(dbPath string) (*os.File, string, error) {
+	lockPath := dbPath + ".daemon.lock"
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, lockPath, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		_ = f.Close()
+		return nil, lockPath, err
+	}
+	if err := f.Truncate(0); err == nil {
+		_, _ = fmt.Fprintf(f, "pid=%d\nstarted=%s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339))
+		_, _ = f.Seek(0, 0)
+	}
+	return f, lockPath, nil
+}
+
+func releaseDaemonLock(f *os.File) {
+	if f == nil {
+		return
+	}
+	_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	_ = f.Close()
 }
 
 func cmdInsights(cfg Config, compact bool) {

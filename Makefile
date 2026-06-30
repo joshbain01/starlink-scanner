@@ -17,6 +17,11 @@ DISH       := 192.168.100.1:9200
 #   make sync-start LAT=47.6062 LON=-122.3321
 sync-start:
 	git pull --ff-only origin master
+	@PIDS="$$(ps -ef | grep -E '[/]bin/pp-starlink daemon|[p]p-starlink daemon' | awk '{print $$2}')"; \
+	if [ -n "$$PIDS" ]; then \
+		echo "Stopping existing pp-starlink daemon process(es): $$PIDS"; \
+		kill $$PIDS; \
+	fi
 	$(MAKE) bootstrap BOOTSTRAP_BUILD=1
 	./bin/pp-starlink init
 	@echo "Location setup:"; \
