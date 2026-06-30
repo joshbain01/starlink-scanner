@@ -93,6 +93,18 @@ _CAUSE_PLAYBOOK: dict[str, dict[str, list[str]]] = {
             "prepare provider escalation with path-change evidence",
         ],
     },
+    "RF_INTERFERENCE_OR_EMI": {
+        "next_checks": [
+            "compare RF noise-floor rise with incident windows",
+            "look for recurring EMI timing patterns (hour/day)",
+            "validate nearby emitters and cabling/shielding conditions",
+        ],
+        "immediate_actions": [
+            "increase physical separation from likely EMI sources",
+            "inspect and harden RF cable/connectors and shielding",
+            "capture focused RF trace around next recurrence window",
+        ],
+    },
     "BUFFERBLOAT_OR_LOAD": {
         "next_checks": [
             "inspect uplink/downlink load near incident start",

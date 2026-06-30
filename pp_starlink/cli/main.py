@@ -38,6 +38,7 @@ from pp_starlink.signals.network_public import NetworkPublicModule
 from pp_starlink.signals.network_routing import NetworkRoutingModule
 from pp_starlink.signals.obstruction import ObstructionModule
 from pp_starlink.signals.registry import SignalRegistry
+from pp_starlink.signals.rf_environment import RFEnvironmentModule
 from pp_starlink.signals.rtc import RTCModule
 from pp_starlink.signals.weather_daily import WeatherDailyModule
 from pp_starlink.signals.weather_hourly import WeatherHourlyModule
@@ -56,6 +57,7 @@ def _build_registry(db_path: str) -> SignalRegistry:
         NetworkLocalModule(db_path),
         NetworkPublicModule(db_path),
         NetworkRoutingModule(db_path),
+        RFEnvironmentModule(db_path),
         ObstructionModule(db_path),
         LoadModule(db_path),
         WeatherHourlyModule(),

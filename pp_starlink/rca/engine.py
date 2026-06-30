@@ -21,6 +21,7 @@ from pp_starlink.rca.rules.bufferbloat import BufferbloatRule
 from pp_starlink.rca.rules.dish_reacq import DishReacquisitionRule
 from pp_starlink.rca.rules.local_lan import LocalLANRule
 from pp_starlink.rca.rules.obstruction import ObstructionRule
+from pp_starlink.rca.rules.rf_interference import RFInterferenceRule
 from pp_starlink.rca.rules.reboot import RebootRule
 from pp_starlink.rca.rules.routing import RoutingRule
 from pp_starlink.rca.rules.starlink_wan import StarlinkWANRule
@@ -33,6 +34,7 @@ _DEFAULT_RULES: List[RCARule] = [
     LocalLANRule(),
     RebootRule(),
     DishReacquisitionRule(),
+    RFInterferenceRule(),
     StarlinkWANRule(),
     ObstructionRule(),
     RoutingRule(),
