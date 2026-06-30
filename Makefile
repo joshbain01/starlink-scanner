@@ -23,10 +23,15 @@ sync-start:
 	if [ "$(SKIP_STOP)" = "1" ]; then \
 		echo "Skipping daemon stop (SKIP_STOP=1)"; \
 	else \
-		PIDS="$$(pgrep -f '(^|/)pp-starlink[[:space:]]+daemon([[:space:]]|$$)' || true)"; \
+		SELF="$$$$"; PARENT="$$PPID"; \
+		PIDS="$$(pgrep -u "$$(id -u)" -f '(^|/)pp-starlink[[:space:]]+daemon([[:space:]]|$$)' || true)"; \
 		if [ -n "$$PIDS" ]; then \
 			echo "Stopping existing pp-starlink daemon process(es): $$PIDS"; \
 			for PID in $$PIDS; do \
+				if [ "$$PID" = "$$SELF" ] || [ "$$PID" = "$$PARENT" ]; then \
+					echo "Warning: skipping current make/shell pid $$PID"; \
+					continue; \
+				fi; \
 				OWNER="$$(ps -o user= -p "$$PID" 2>/dev/null | tr -d ' ' || true)"; \
 				if [ -z "$$OWNER" ]; then \
 					echo "Warning: pid $$PID no longer exists"; \
