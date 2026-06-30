@@ -81,9 +81,23 @@ func cmdStatus(cfg Config) {
 	go func() { defer wg.Done(); mu.Lock(); status, statErr = sc.GetStatus(ctx); mu.Unlock() }()
 	go func() { defer wg.Done(); mu.Lock(); info, infoErr = sc.GetDeviceInfo(ctx); mu.Unlock() }()
 	go func() { defer wg.Done(); mu.Lock(); history, histErr = sc.GetHistory(ctx); mu.Unlock() }()
-	if cfg.EnableDishGPS {
+	if cfg.LocationCommand != "" || cfg.EnableDishGPS {
 		wg.Add(1)
-		go func() { defer wg.Done(); mu.Lock(); location, locErr = sc.GetLocation(ctx); mu.Unlock() }()
+		go func() {
+			defer wg.Done()
+			locCtx, locCancel := context.WithTimeout(ctx, 4*time.Second)
+			defer locCancel()
+			var loc starlink.Location
+			var err error
+			if cfg.LocationCommand != "" {
+				loc, err = fetchExternalLocation(locCtx, cfg.LocationCommand)
+			} else {
+				loc, err = sc.GetLocation(locCtx)
+			}
+			mu.Lock()
+			location, locErr = loc, err
+			mu.Unlock()
+		}()
 	}
 	wg.Wait()
 
@@ -96,7 +110,7 @@ func cmdStatus(cfg Config) {
 	if histErr != nil {
 		log.Printf("GetHistory: %v (continuing)", histErr)
 	}
-	if cfg.EnableDishGPS && locErr != nil {
+	if (cfg.LocationCommand != "" || cfg.EnableDishGPS) && locErr != nil {
 		log.Printf("GetLocation: %v (continuing)", locErr)
 	}
 
@@ -662,8 +676,10 @@ COMMANDS
     Every 15 s: queries the dish gRPC API, pings gateway/POP/public DNS,
     computes satellite look-angles (if location is set), and writes
     telemetry to the database.
-		Dish GPS location RPC is disabled by default; enable only if policy allows:
-			STARLINK_ENABLE_DISH_LOCATION=1
+		Location sources (priority order):
+		  STARLINK_LOCATION_COMMAND (external hardware JSON provider)
+		  STARLINK_ENABLE_DISH_LOCATION=1 (dish RPC, policy permitting)
+		  set-location static observer point
 
   insights [--compact]
     Analyse packet-loss events from the last 30 days.
@@ -776,7 +792,9 @@ func cmdDaemon(cfg Config) {
 	defer c.Close()
 
 	log.Printf("daemon started, interval=%s", cfg.Interval)
-	if !cfg.EnableDishGPS {
+	if cfg.LocationCommand != "" {
+		log.Printf("external location command enabled: %s", cfg.LocationCommand)
+	} else if !cfg.EnableDishGPS {
 		log.Printf("dish location RPC disabled (set STARLINK_ENABLE_DISH_LOCATION=1 to enable)")
 	}
 	tick := time.NewTicker(cfg.Interval)

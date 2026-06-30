@@ -231,6 +231,8 @@ Two separate data collectors write to a shared SQLite database (`/data/starlink_
 | `STARLINK_LOSS_THRESHOLD` | `0.05` | Minimum packet loss fraction to flag as a drop event |
 | `STARLINK_SNR_DELTA` | `3.0` dB | Drop below 24h SNR baseline → physical blockage |
 | `STARLINK_NOISE_DELTA` | `3.0` dB | Spike above 24h noise baseline → EMI/radar |
+| `STARLINK_LOCATION_COMMAND` | `` | External per-tick location provider command. Must output JSON like `{"lat":47.6,"lon":-122.3,"altitude_m":12.0,"timestamp":"2026-06-30T18:00:00Z","valid":true}` |
+| `STARLINK_ENABLE_DISH_LOCATION` | `false` | Opt-in to dish `GetLocation` RPC. Disabled by default because policy may block it. |
 | `DB_PATH` | `/data/starlink_telemetry.db` | Shared database path (Python + Go must agree) |
 | `RF_CENTER_HZ` / `RF_BW_HZ` | `1575 MHz / 4 MHz` | RTL-SDR tune frequency; adjust for your LNB IF |
 

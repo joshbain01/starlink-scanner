@@ -22,14 +22,15 @@ import (
 // daemon loop. Reconnection, TLE refresh, DB maintenance, and sample assembly
 // are all inside; the caller holds no collection state of its own.
 type Collector struct {
-	d             *db.DB
-	dishAddr      string
-	tleCacheFile  string
-	grpcurlPath   string
-	targets       [3]string // [gateway, POP, public]; empty slot = skip
-	lat, lon      float64
-	hasObs        bool
-	enableDishGPS bool
+	d               *db.DB
+	dishAddr        string
+	tleCacheFile    string
+	grpcurlPath     string
+	targets         [3]string // [gateway, POP, public]; empty slot = skip
+	lat, lon        float64
+	hasObs          bool
+	enableDishGPS   bool
+	locationCommand string
 
 	sc        *starlink.Client
 	grpcFails int
@@ -60,16 +61,17 @@ type Collector struct {
 // initial dial is not fatal — it will be retried on the first Tick.
 func NewCollector(d *db.DB, cfg Config, targets [3]string, lat, lon float64, hasObs bool) *Collector {
 	c := &Collector{
-		d:             d,
-		dishAddr:      cfg.DishAddr,
-		tleCacheFile:  cfg.TLECacheFile,
-		grpcurlPath:   cfg.GrpcurlPath,
-		targets:       targets,
-		popIP:         targets[1],
-		lat:           lat,
-		lon:           lon,
-		hasObs:        hasObs,
-		enableDishGPS: cfg.EnableDishGPS,
+		d:               d,
+		dishAddr:        cfg.DishAddr,
+		tleCacheFile:    cfg.TLECacheFile,
+		grpcurlPath:     cfg.GrpcurlPath,
+		targets:         targets,
+		popIP:           targets[1],
+		lat:             lat,
+		lon:             lon,
+		hasObs:          hasObs,
+		enableDishGPS:   cfg.EnableDishGPS,
+		locationCommand: cfg.LocationCommand,
 	}
 	c.dial()
 	c.retryPolicy = retry.ConsecutiveFailures{N: 3}
@@ -77,7 +79,8 @@ func NewCollector(d *db.DB, cfg Config, targets [3]string, lat, lon float64, has
 		&maintenance.Interval{Period: 24 * time.Hour, RunFunc: func() error { return c.d.Prune() }},
 		&maintenance.Interval{Period: 7 * 24 * time.Hour, RunFunc: func() error { return c.d.Vacuum() }},
 	)
-	if hasObs {
+	if hasObs || cfg.EnableDishGPS || cfg.LocationCommand != "" {
+		c.hasObs = true
 		if t, err := orbit.FetchTLEs(c.tleCacheFile); err != nil {
 			log.Printf("TLE fetch: %v — orbit disabled until next refresh", err)
 			c.hasObs = false
@@ -302,8 +305,23 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 		mu.Unlock()
 	}()
 
-	// Best-effort location fetch: back off when dish policy blocks access.
-	if c.enableDishGPS && !now.Before(c.locationRetryAfter) {
+	// Best-effort location fetch: use external command when configured.
+	if c.locationCommand != "" && !now.Before(c.locationRetryAfter) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			locCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+			defer cancel()
+			loc, err := fetchExternalLocation(locCtx, c.locationCommand)
+			mu.Lock()
+			defer mu.Unlock()
+			locFetch = true
+			locErr = err
+			if err == nil {
+				location = loc
+			}
+		}()
+	} else if c.enableDishGPS && !now.Before(c.locationRetryAfter) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -328,7 +346,11 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 
 	if locFetch {
 		if locErr != nil {
-			if starlink.IsLocationDisabledByPolicyError(locErr) {
+			if c.locationCommand != "" {
+				log.Printf("external location: %v (retrying every 60s)", locErr)
+				c.locationFetchBlocked = true
+				c.locationRetryAfter = now.Add(60 * time.Second)
+			} else if starlink.IsLocationDisabledByPolicyError(locErr) {
 				if !c.locationFetchBlocked {
 					log.Printf("grpc location disabled by dish policy; retrying every 30m")
 				}
@@ -388,6 +410,10 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 		gpsLatPtr = &lat
 		gpsLonPtr = &lon
 		gpsAltPtr = &alt
+		if gpsValidPtr == nil {
+			v := true
+			gpsValidPtr = &v
+		}
 	}
 
 	var quatW, quatX, quatY, quatZ *float64
@@ -450,7 +476,11 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 	}
 
 	if c.hasObs {
-		if look, err := orbit.HighestSatellite(c.tles, c.lat, c.lon, now); err == nil {
+		obsLat, obsLon := c.lat, c.lon
+		if location.Valid {
+			obsLat, obsLon = location.Lat, location.Lon
+		}
+		if look, err := orbit.HighestSatellite(c.tles, obsLat, obsLon, now); err == nil {
 			satID := look.SatID
 			az, el := look.Azimuth, look.Elevation
 			s.SatelliteID = &satID

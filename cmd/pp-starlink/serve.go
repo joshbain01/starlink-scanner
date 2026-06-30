@@ -66,9 +66,23 @@ func cmdServe(cfg Config) {
 		go func() { defer wg.Done(); mu.Lock(); status, statErr = sc.GetStatus(ctx); mu.Unlock() }()
 		go func() { defer wg.Done(); mu.Lock(); info, infoErr = sc.GetDeviceInfo(ctx); mu.Unlock() }()
 		go func() { defer wg.Done(); mu.Lock(); history, histErr = sc.GetHistory(ctx); mu.Unlock() }()
-		if cfg.EnableDishGPS {
+		if cfg.LocationCommand != "" || cfg.EnableDishGPS {
 			wg.Add(1)
-			go func() { defer wg.Done(); mu.Lock(); location, locErr = sc.GetLocation(ctx); mu.Unlock() }()
+			go func() {
+				defer wg.Done()
+				locCtx, locCancel := context.WithTimeout(ctx, 4*time.Second)
+				defer locCancel()
+				var loc starlink.Location
+				var err error
+				if cfg.LocationCommand != "" {
+					loc, err = fetchExternalLocation(locCtx, cfg.LocationCommand)
+				} else {
+					loc, err = sc.GetLocation(locCtx)
+				}
+				mu.Lock()
+				location, locErr = loc, err
+				mu.Unlock()
+			}()
 		}
 		wg.Wait()
 
@@ -82,7 +96,7 @@ func cmdServe(cfg Config) {
 		if histErr != nil {
 			log.Printf("serve /api/status GetHistory: %v (continuing)", histErr)
 		}
-		if cfg.EnableDishGPS && locErr != nil {
+		if (cfg.LocationCommand != "" || cfg.EnableDishGPS) && locErr != nil {
 			log.Printf("serve /api/status GetLocation: %v (continuing)", locErr)
 		}
 

@@ -8,15 +8,16 @@ import (
 
 // Config holds all runtime configuration. Load once at startup; pass by value.
 type Config struct {
-	DishAddr      string
-	DBPath        string
-	TLECacheFile  string
-	GrpcurlPath   string
-	EnableDishGPS bool
-	Interval      time.Duration
-	LossThreshold float64
-	SNRDelta      float64
-	NoiseDelta    float64
+	DishAddr        string
+	DBPath          string
+	TLECacheFile    string
+	GrpcurlPath     string
+	EnableDishGPS   bool
+	LocationCommand string
+	Interval        time.Duration
+	LossThreshold   float64
+	SNRDelta        float64
+	NoiseDelta      float64
 }
 
 // Load reads configuration from environment variables, falling back to
@@ -24,15 +25,16 @@ type Config struct {
 // and the safe default is used instead.
 func Load() Config {
 	return Config{
-		DishAddr:      envStr("STARLINK_DISH_ADDR", "192.168.100.1:9200"),
-		DBPath:        envStr("DB_PATH", "/data/starlink_telemetry.db"),
-		TLECacheFile:  envStr("STARLINK_TLE_CACHE", "/tmp/starlink_current.tle"),
-		GrpcurlPath:   envStr("GRPCURL_PATH", detectGrpcurl()),
-		EnableDishGPS: boolEnv("STARLINK_ENABLE_DISH_LOCATION", false),
-		Interval:      15 * time.Second,
-		LossThreshold: floatEnv("STARLINK_LOSS_THRESHOLD", 0.05),
-		SNRDelta:      floatEnv("STARLINK_SNR_DELTA", 3.0),
-		NoiseDelta:    floatEnv("STARLINK_NOISE_DELTA", 3.0),
+		DishAddr:        envStr("STARLINK_DISH_ADDR", "192.168.100.1:9200"),
+		DBPath:          envStr("DB_PATH", "/data/starlink_telemetry.db"),
+		TLECacheFile:    envStr("STARLINK_TLE_CACHE", "/tmp/starlink_current.tle"),
+		GrpcurlPath:     envStr("GRPCURL_PATH", detectGrpcurl()),
+		EnableDishGPS:   boolEnv("STARLINK_ENABLE_DISH_LOCATION", false),
+		LocationCommand: envStr("STARLINK_LOCATION_COMMAND", ""),
+		Interval:        15 * time.Second,
+		LossThreshold:   floatEnv("STARLINK_LOSS_THRESHOLD", 0.05),
+		SNRDelta:        floatEnv("STARLINK_SNR_DELTA", 3.0),
+		NoiseDelta:      floatEnv("STARLINK_NOISE_DELTA", 3.0),
 	}
 }
 
