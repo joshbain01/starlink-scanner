@@ -762,6 +762,28 @@ func cmdInsights(cfg Config, compact bool) {
 		return
 	}
 
+	// "Flutter" events: a single dropped ping out of the 10-ping sample
+	// (internal/ping.CommandPinger runs -c 10) lands at exactly 10% loss,
+	// which is the smallest non-zero value the sampler can report. With
+	// STARLINK_LOSS_THRESHOLD's default of 0.05, every one of those trips
+	// the detector even though it's a single timeout, not degradation.
+	// "baseline"/"default fallback classification" confidence means no RF
+	// telemetry corroborated it (rf_telemetry join found nothing within
+	// ±1s) — usually because the RF listener isn't running or producing
+	// data. Surface the split here instead of leaving it to be discovered
+	// via ad hoc SQL against network_telemetry.
+	const flutterLossMax = 0.10 + 1e-9
+	flutter := 0
+	for _, e := range events {
+		if e.PacketLoss <= flutterLossMax &&
+			(e.ConfidenceWhy == "baseline" || e.ConfidenceWhy == "default fallback classification") {
+			flutter++
+		}
+	}
+	fmt.Printf("## Drop event summary (last 30 days)\n")
+	fmt.Printf("%d events | %d likely single-ping flutter (loss<=10%%, uncorroborated) | %d worth reviewing\n\n",
+		len(events), flutter, len(events)-flutter)
+
 	for _, e := range events {
 		t := e.Timestamp.Format(time.RFC3339)
 		sat := fmtSat(e.SatelliteID, e.Azimuth, e.Elevation)

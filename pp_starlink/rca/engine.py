@@ -102,6 +102,13 @@ class RCAEngine:
         incident: Incident,
         signals: Dict[str, ContextSignal],
     ) -> None:
+        incident.signals = [
+            sig_id
+            for sig_id, sig in signals.items()
+            if sig_id != "__incidents__"
+            and sig.records_in_window(incident.start_time, incident.end_time)
+        ]
+
         for rule in self._rules:
             try:
                 result = rule.evaluate(incident, signals)
