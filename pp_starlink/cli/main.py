@@ -27,6 +27,7 @@ from pp_starlink.rca.engine import RCAEngine
 from pp_starlink.reports.formatter import (
     format_report,
     format_worst_day_summary,
+    incidents_to_ai_bundle_json,
     incidents_to_json,
 )
 from pp_starlink.signals.dish_reboot import DishRebootModule
@@ -217,9 +218,10 @@ def analyze(
 
 @cli.command()
 @click.option("--json-output", "as_json", is_flag=True, default=False, help="Output as JSON.")
+@click.option("--ai-bundle", is_flag=True, default=False, help="Output AI-first RCA bundle JSON.")
 @click.option("--limit", default=100, show_default=True, type=int, help="Max incidents to include.")
 @click.pass_context
-def report(ctx: click.Context, as_json: bool, limit: int) -> None:
+def report(ctx: click.Context, as_json: bool, ai_bundle: bool, limit: int) -> None:
     """Print a formatted RCA report from stored incidents."""
     data_dir = ctx.obj["data_dir"]
 
@@ -232,6 +234,21 @@ def report(ctx: click.Context, as_json: bool, limit: int) -> None:
 
     # Reconstruct minimal Incident objects for formatting
     from pp_starlink.core.models import Incident
+
+    def _parse_json_list(raw: object) -> list[str]:
+        if not raw:
+            return []
+        if isinstance(raw, str):
+            try:
+                v = json.loads(raw)
+                if isinstance(v, list):
+                    return [str(x) for x in v]
+            except Exception:
+                return []
+        if isinstance(raw, list):
+            return [str(x) for x in raw]
+        return []
+
     incidents = []
     for row in stored:
         inc = Incident(
@@ -241,15 +258,23 @@ def report(ctx: click.Context, as_json: bool, limit: int) -> None:
             duration_seconds=row.get("duration_seconds") or 0,
             metrics={
                 "packet_loss_max": row.get("packet_loss_max") or 0.0,
+                "packet_loss_avg": row.get("packet_loss_avg") or 0.0,
                 "latency_max": row.get("latency_max"),
+                "jitter_max": row.get("jitter_max"),
+                "pop_drop_max": row.get("pop_drop_max"),
                 "sample_count": row.get("sample_count"),
             },
             root_cause=row.get("root_cause"),
             confidence=row.get("confidence"),
+            evidence=_parse_json_list(row.get("evidence")),
+            missing_evidence=_parse_json_list(row.get("missing_evidence")),
+            signals=_parse_json_list(row.get("signals")),
         )
         incidents.append(inc)
 
-    if as_json:
+    if ai_bundle:
+        click.echo(incidents_to_ai_bundle_json(incidents))
+    elif as_json:
         click.echo(incidents_to_json(incidents))
     else:
         click.echo(format_report(incidents))

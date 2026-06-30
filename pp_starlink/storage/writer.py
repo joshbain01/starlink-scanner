@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS rca_incidents (
     packet_loss_avg   REAL,
     latency_max       REAL,
     jitter_max        REAL,
+    pop_drop_max      REAL,
     sample_count      INTEGER,
     evidence          TEXT,
     missing_evidence  TEXT,
@@ -68,6 +69,10 @@ def _open_rca_db(path: Path) -> sqlite3.Connection:
     for p in _PRAGMAS:
         con.execute(p)
     con.execute(_CREATE_TABLE)
+    # Lightweight forward-compatible schema fixups for existing local DB files.
+    cols = {r[1] for r in con.execute("PRAGMA table_info(rca_incidents)").fetchall()}
+    if "pop_drop_max" not in cols:
+        con.execute("ALTER TABLE rca_incidents ADD COLUMN pop_drop_max REAL")
     con.commit()
     return con
 
@@ -171,6 +176,7 @@ class StorageWriter:
                 inc.metrics.get("packet_loss_avg"),
                 inc.metrics.get("latency_max"),
                 inc.metrics.get("jitter_max"),
+                inc.metrics.get("pop_drop_max"),
                 inc.metrics.get("sample_count"),
                 json.dumps(inc.evidence),
                 json.dumps(inc.missing_evidence),
@@ -182,9 +188,9 @@ class StorageWriter:
             """INSERT OR REPLACE INTO rca_incidents
                (id, start_time, end_time, duration_seconds, root_cause,
                 confidence, packet_loss_max, packet_loss_avg, latency_max,
-                jitter_max, sample_count, evidence, missing_evidence, signals,
+                jitter_max, pop_drop_max, sample_count, evidence, missing_evidence, signals,
                 written_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             rows,
         )
         self._conn().commit()
@@ -248,8 +254,12 @@ class StorageWriter:
         """Return recent incidents from rca_incidents as plain dicts."""
         rows = self._conn().execute(
             """SELECT id, start_time, end_time, duration_seconds,
-                      root_cause, confidence, packet_loss_max, latency_max,
-                      sample_count, written_at
+                      root_cause, confidence,
+                      packet_loss_max, packet_loss_avg,
+                      latency_max, jitter_max, pop_drop_max,
+                      sample_count,
+                      evidence, missing_evidence, signals,
+                      written_at
                FROM rca_incidents
                ORDER BY start_time DESC
                LIMIT ?""",
@@ -257,7 +267,11 @@ class StorageWriter:
         ).fetchall()
         cols = [
             "id", "start_time", "end_time", "duration_seconds",
-            "root_cause", "confidence", "packet_loss_max", "latency_max",
-            "sample_count", "written_at",
+            "root_cause", "confidence",
+            "packet_loss_max", "packet_loss_avg",
+            "latency_max", "jitter_max", "pop_drop_max",
+            "sample_count",
+            "evidence", "missing_evidence", "signals",
+            "written_at",
         ]
         return [dict(zip(cols, row)) for row in rows]
