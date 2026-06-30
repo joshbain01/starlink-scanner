@@ -23,9 +23,15 @@ sync-start:
 	if [ -n "$(LAT)" ] && [ -n "$(LON)" ]; then \
 		./bin/pp-starlink set-location --lat "$(LAT)" --lon "$(LON)"; \
 	else \
-		echo "Enter observer coordinates:"; \
-		printf "Latitude: "; read -r LAT_IN; \
-		printf "Longitude: "; read -r LON_IN; \
+		echo "Paste coordinates as 'lat, lon' (example: 32.853359101557814, -97.25425341002087)"; \
+		printf "Coordinates: "; read -r COORDS_IN; \
+		LAT_IN="$$(printf '%s' "$$COORDS_IN" | cut -d',' -f1 | tr -d ' ')"; \
+		LON_IN="$$(printf '%s' "$$COORDS_IN" | cut -d',' -f2 | tr -d ' ')"; \
+		if [ -z "$$LAT_IN" ] || [ -z "$$LON_IN" ]; then \
+			echo "Could not parse 'lat, lon' input; entering manual mode."; \
+			printf "Latitude: "; read -r LAT_IN; \
+			printf "Longitude: "; read -r LON_IN; \
+		fi; \
 		./bin/pp-starlink set-location --lat "$$LAT_IN" --lon "$$LON_IN"; \
 	fi
 	@echo "sync-start complete. Next: ./bin/pp-starlink status --json && ./bin/pp-starlink daemon"

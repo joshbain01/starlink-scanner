@@ -10,6 +10,12 @@ One-command update + start prep (pull + bootstrap + init + location setup):
 make sync-start
 ```
 
+At the location prompt, paste one line in Google Maps format:
+
+```text
+32.853359101557814, -97.25425341002087
+```
+
 Non-interactive location setup:
 
 ```bash

@@ -20,6 +20,12 @@ make sync-start
 
 This target pulls `origin/master`, bootstraps/builds the environment, initializes the DB, and prompts for `lat`/`lon` if location is missing.
 
+At the prompt you can paste Google Maps format in one line:
+
+```text
+32.853359101557814, -97.25425341002087
+```
+
 For non-interactive use:
 
 ```bash
