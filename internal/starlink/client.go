@@ -2,10 +2,15 @@ package starlink
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	pb "pp-starlink/proto/device"
 )
@@ -13,6 +18,12 @@ import (
 type Client struct {
 	conn *grpc.ClientConn
 	svc  pb.DeviceClient
+}
+
+var ErrLocationDisabledByPolicy = errors.New("location disabled by dish policy")
+
+func IsLocationDisabledByPolicyError(err error) bool {
+	return errors.Is(err, ErrLocationDisabledByPolicy)
 }
 
 func Dial(addr string) (*Client, error) {
@@ -228,6 +239,12 @@ func (c *Client) GetLocation(ctx context.Context) (Location, error) {
 		Request: &pb.Request_GetLocation{GetLocation: &pb.GetLocationRequest{}},
 	})
 	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			msg := strings.ToLower(st.Message())
+			if st.Code() == codes.PermissionDenied && strings.Contains(msg, "disabled due to policy") {
+				return Location{}, fmt.Errorf("%w: %v", ErrLocationDisabledByPolicy, err)
+			}
+		}
 		return Location{}, err
 	}
 

@@ -49,6 +49,10 @@ type Collector struct {
 	lastPrune         time.Time
 	lastVacuum        time.Time
 	lastSchemaRefresh time.Time
+
+	// Location RPC backoff when dish policy blocks access.
+	locationFetchBlocked bool
+	locationRetryAfter   time.Time
 }
 
 // NewCollector wires up a Collector and dials the dish immediately. A failed
@@ -256,8 +260,12 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 		pings    [3]ping.Result
 		history  starlink.History
 		location starlink.Location
+		locErr   error
+		locFetch bool
 		wg       sync.WaitGroup
 	)
+
+	now := time.Now()
 
 	// Kick off pings.
 	for i, t := range c.targets {
@@ -292,19 +300,21 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 		mu.Unlock()
 	}()
 
-	// Best-effort location fetch: do not fail the tick when unavailable.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		loc, err := c.sc.GetLocation(ctx)
-		if err != nil {
-			log.Printf("grpc location: %v", err)
-			return
-		}
-		mu.Lock()
-		location = loc
-		mu.Unlock()
-	}()
+	// Best-effort location fetch: back off when dish policy blocks access.
+	if !now.Before(c.locationRetryAfter) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			loc, err := c.sc.GetLocation(ctx)
+			mu.Lock()
+			defer mu.Unlock()
+			locFetch = true
+			locErr = err
+			if err == nil {
+				location = loc
+			}
+		}()
+	}
 
 	status, grpcErr := c.sc.GetStatus(ctx)
 	wg.Wait()
@@ -314,7 +324,25 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 		return false
 	}
 
-	now := time.Now()
+	if locFetch {
+		if locErr != nil {
+			if starlink.IsLocationDisabledByPolicyError(locErr) {
+				if !c.locationFetchBlocked {
+					log.Printf("grpc location disabled by dish policy; retrying every 30m")
+				}
+				c.locationFetchBlocked = true
+				c.locationRetryAfter = now.Add(30 * time.Minute)
+			} else {
+				log.Printf("grpc location: %v", locErr)
+			}
+		} else {
+			if c.locationFetchBlocked {
+				log.Printf("grpc location re-enabled; resuming per-tick location fetch")
+			}
+			c.locationFetchBlocked = false
+			c.locationRetryAfter = time.Time{}
+		}
+	}
 
 	// Derived window stats from the last 15 seconds of history.
 	const windowSecs = 15
