@@ -590,10 +590,12 @@ COMMANDS
     --lon <float>   Observer longitude (e.g. -122.3321)
     --compact       Output as a Markdown list item.
 
-  predict-window --duration <minutes>
+	predict-window --duration <minutes> [--synthetic]
     Forecast satellite passes through historically lossy az/el zones.
     Requires set-location to have been run and sufficient daemon history.
     --duration <minutes>   How far ahead to predict (e.g. 60).
+		--synthetic            Use built-in dev/demo risk zones when historical
+													telemetry zones are unavailable.
 
   report
     Statistical analysis of collected telemetry: drop rate by day and hour,
@@ -760,6 +762,7 @@ func cmdPredictWindow(cfg Config) {
 		fmt.Fprintln(os.Stderr, "usage: pp-starlink predict-window --duration <minutes>")
 		os.Exit(1)
 	}
+	useSynthetic := hasFlag("--synthetic")
 	mins, err := strconv.Atoi(durStr)
 	if err != nil || mins <= 0 {
 		fmt.Fprintf(os.Stderr, "invalid --duration: %s\n", durStr)
@@ -793,14 +796,21 @@ func cmdPredictWindow(cfg Config) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if len(buckets) == 0 {
-		fmt.Println("No historical bad zones found — collect more telemetry with the daemon first.")
-		return
-	}
 
-	bad := make([]orbit.BadZone, len(buckets))
-	for i, b := range buckets {
-		bad[i] = orbit.BadZone{Az: b.AzBucket, El: b.ElBucket}
+	var bad []orbit.BadZone
+	if useSynthetic {
+		bad = syntheticBadZones()
+		fmt.Println("Using synthetic risk zones for development mode (--synthetic).")
+	} else {
+		if len(buckets) == 0 {
+			fmt.Println("No historical bad zones found — collect more telemetry with the daemon first.")
+			fmt.Println("Tip: use --synthetic for development/demo output without historical zones.")
+			return
+		}
+		bad = make([]orbit.BadZone, len(buckets))
+		for i, b := range buckets {
+			bad[i] = orbit.BadZone{Az: b.AzBucket, El: b.ElBucket}
+		}
 	}
 
 	windows := orbit.PassesInWindow(tles, lat, lon, bad, time.Duration(mins)*time.Minute)
@@ -813,37 +823,39 @@ func cmdPredictWindow(cfg Config) {
 	fmt.Println("| Start | End | Satellite | Az (°) | El (°) | Pred MOS | Rationale |")
 	fmt.Println("|-------|-----|-----------|--------|--------|----------|-----------|")
 	for _, w := range windows {
-		mos, rationale := predictWindowMOS(w, buckets)
+		mos, rationale := predictWindowMOS(w, buckets, useSynthetic)
 		fmt.Printf("| %s | %s | %-20s | %6.1f | %6.1f | %8.2f | %s |\n",
 			w.Start.Format("15:04:05"), w.End.Format("15:04:05"),
 			w.SatID, w.Azimuth, w.Elevation, mos, rationale)
 	}
 }
 
-func predictWindowMOS(w orbit.RiskWindow, buckets []db.SpatialBucket) (float64, string) {
+func predictWindowMOS(w orbit.RiskWindow, buckets []db.SpatialBucket, synthetic bool) (float64, string) {
 	const (
 		azTol = 5.0
 		elTol = 2.5
 	)
 
 	matched := make([]db.SpatialBucket, 0, 4)
-	closest := buckets[0]
-	bestDist := math.MaxFloat64
-	for _, b := range buckets {
-		dAz := math.Abs(w.Azimuth - b.AzBucket)
-		dEl := math.Abs(w.Elevation - b.ElBucket)
-		dist := dAz/azTol + dEl/elTol
-		if dist < bestDist {
-			bestDist = dist
-			closest = b
+	if len(buckets) > 0 {
+		closest := buckets[0]
+		bestDist := math.MaxFloat64
+		for _, b := range buckets {
+			dAz := math.Abs(w.Azimuth - b.AzBucket)
+			dEl := math.Abs(w.Elevation - b.ElBucket)
+			dist := dAz/azTol + dEl/elTol
+			if dist < bestDist {
+				bestDist = dist
+				closest = b
+			}
+			if dAz <= azTol && dEl <= elTol {
+				matched = append(matched, b)
+			}
 		}
-		if dAz <= azTol && dEl <= elTol {
-			matched = append(matched, b)
-		}
-	}
 
-	if len(matched) == 0 {
-		matched = append(matched, closest)
+		if len(matched) == 0 {
+			matched = append(matched, closest)
+		}
 	}
 
 	weightTotal := 0.0
@@ -867,6 +879,11 @@ func predictWindowMOS(w orbit.RiskWindow, buckets []db.SpatialBucket) (float64, 
 		windowMins = 1
 	}
 
+	if len(matched) == 0 {
+		// Synthetic mode fallback: no historical evidence, rely on geometry + duration.
+		weightedLoss = 0.18
+	}
+
 	lossRisk := weightedLoss
 	evidenceRisk := 0.15 * math.Min(1.0, float64(evidence)/20.0)
 	durationRisk := 0.10 * math.Min(1.0, windowMins/5.0)
@@ -881,14 +898,34 @@ func predictWindowMOS(w orbit.RiskWindow, buckets []db.SpatialBucket) (float64, 
 		mos = 5.0
 	}
 
-	rationale := fmt.Sprintf(
-		"hist loss %.0f%% across %d incidents; pass el %.1f deg; window %.0f min",
-		weightedLoss*100,
-		evidence,
-		w.Elevation,
-		windowMins,
-	)
+	rationale := ""
+	if synthetic && len(matched) == 0 {
+		rationale = fmt.Sprintf(
+			"synthetic baseline loss %.0f%%; pass el %.1f deg; window %.0f min",
+			weightedLoss*100,
+			w.Elevation,
+			windowMins,
+		)
+	} else {
+		rationale = fmt.Sprintf(
+			"hist loss %.0f%% across %d incidents; pass el %.1f deg; window %.0f min",
+			weightedLoss*100,
+			evidence,
+			w.Elevation,
+			windowMins,
+		)
+	}
 	return mos, rationale
+}
+
+func syntheticBadZones() []orbit.BadZone {
+	return []orbit.BadZone{
+		{Az: 330, El: 82},
+		{Az: 300, El: 78},
+		{Az: 200, El: 76},
+		{Az: 80, El: 80},
+		{Az: 350, El: 74},
+	}
 }
 
 func fmtDB(v *float64) string {

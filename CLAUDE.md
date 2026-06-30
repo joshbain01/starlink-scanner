@@ -2,41 +2,147 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Commands
+## Fast command map
+
+One-command bootstrap (venv + deps):
 
 ```bash
-# Build the Go binary (also regenerates proto stubs and downloads deps)
-make build
-
-# Generate Go stubs from proto/device.proto only
-make proto
-
-# Run the e2e smoke test (requires live dish at 192.168.100.1:9200)
-./bin/e2e
-
-# Inspect live dish proto fields (useful when dish firmware updates field numbers)
-make verify-dish
-
-# Run in Docker (production mode: init + daemon + rf-listener)
-docker compose up --build
-
-# One-off CLI commands against a running database
-./bin/pp-starlink init
-./bin/pp-starlink set-location --lat 47.6062 --lon -122.3321
-./bin/pp-starlink daemon
-./bin/pp-starlink insights [--compact]
-./bin/pp-starlink predict-window --duration 60
-```bash
-# Refresh live dish gRPC schema snapshot (requires live dish + grpcurl)
-make refresh-schema
-
-# Show current dish state (live, no daemon required)
-./bin/pp-starlink status [--json]
+make bootstrap
 ```
 
-There are no unit tests beyond the e2e binary. `go test ./...` will find nothing.
+Attempt binary build during bootstrap:
 
-Required system packages for the daemon: `iputils-ping`, `traceroute`. Required for RF listener: `rtl-sdr` (provides `rtl_power`). Required for proto generation: `protobuf-compiler`, `grpcurl`.
+```bash
+make bootstrap BOOTSTRAP_BUILD=1
+```
+
+Include web build in bootstrap when needed:
+
+```bash
+make bootstrap BOOTSTRAP_BUILD=1 BOOTSTRAP_WEB=1
+```
+
+One-command cleanup:
+
+```bash
+make cleanup
+```
+
+Build and generate proto/web assets:
+
+```bash
+make build
+```
+
+Generate proto stubs only:
+
+```bash
+make proto
+```
+
+Run production-like stack:
+
+```bash
+docker compose up --build -d
+```
+
+Tail service logs:
+
+```bash
+docker compose logs -f pp-starlink-engine
+docker compose logs -f rf-listener
+```
+
+Run Athena checks:
+
+```bash
+venv/bin/athena test tests/athena
+```
+
+Update Athena baselines after intentional changes:
+
+```bash
+venv/bin/athena test -b tests/athena
+```
+
+Run e2e smoke test (requires live dish):
+
+```bash
+./bin/e2e
+```
+
+## Start sequence after bootstrap
+
+This is the full local start sequence after cloning.
+
+1. Setup environment:
+
+```bash
+make bootstrap
+```
+
+2. Build binaries:
+
+```bash
+make bootstrap BOOTSTRAP_BUILD=1
+```
+
+3. Initialize DB schema:
+
+```bash
+./bin/pp-starlink init
+```
+
+4. Verify live dish connectivity:
+
+```bash
+./bin/pp-starlink status --json
+```
+
+5. Set observer location (required for orbital features):
+
+```bash
+./bin/pp-starlink set-location --lat 47.6062 --lon -122.3321
+```
+
+6. Start collection loop:
+
+```bash
+./bin/pp-starlink daemon
+```
+
+7. In a second terminal, run analysis commands:
+
+```bash
+./bin/pp-starlink insights --compact
+./bin/pp-starlink predict-window --duration 60
+# Dev/demo without historical zones:
+./bin/pp-starlink predict-window --duration 60 --synthetic
+```
+
+8. If you prefer full-stack runtime instead of direct CLI:
+
+```bash
+docker compose up --build -d
+docker compose logs -f pp-starlink-engine
+docker compose logs -f rf-listener
+```
+
+9. Validate health before finishing work:
+
+```bash
+venv/bin/athena test tests/athena
+```
+
+10. If local artifacts are messy or stale:
+
+```bash
+make cleanup
+```
+
+There are no unit tests beyond the e2e binary. go test ./... may find little or no tests.
+
+Required system packages for the daemon: iputils-ping, traceroute. Required for RF listener: rtl-sdr (provides rtl_power). Required for proto generation: protobuf-compiler, grpcurl.
 
 ## Architecture
 
