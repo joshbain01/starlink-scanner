@@ -6,7 +6,6 @@ dist/
 htmlcov/
 .hypothesis/constants/
 # END ATHENA MANAGED
-
 # Python runtime cache artifacts
 __pycache__/
 *.py[cod]

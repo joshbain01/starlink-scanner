@@ -5,7 +5,7 @@ DISH       := 192.168.100.1:9200
 
 -include .athena/Makefile.inc
 
-.PHONY: sync-start bootstrap bootstrap-build bootstrap-check cleanup proto deps build web-build up verify-dish refresh-schema
+.PHONY: sync-start bootstrap bootstrap-build bootstrap-check test cleanup proto deps build web-build up verify-dish refresh-schema
 
 # One-command update + environment start prep.
 # - pulls latest origin/master (ff-only)
@@ -15,13 +15,36 @@ DISH       := 192.168.100.1:9200
 #
 # Optional non-interactive location override:
 #   make sync-start LAT=47.6062 LON=-122.3321
+# Optional daemon-stop override (for constrained shells/permissions):
+#   make sync-start SKIP_STOP=1
 sync-start:
 	git pull --ff-only origin master
-	@PIDS="$$(ps -ef | grep -E '[/]bin/pp-starlink daemon|[p]p-starlink daemon' | awk '{print $$2}')"; \
-	if [ -n "$$PIDS" ]; then \
-		echo "Stopping existing pp-starlink daemon process(es): $$PIDS"; \
-		kill $$PIDS; \
-	fi
+	@{ \
+	if [ "$(SKIP_STOP)" = "1" ]; then \
+		echo "Skipping daemon stop (SKIP_STOP=1)"; \
+	else \
+		PIDS="$$(pgrep -f '(^|/)pp-starlink[[:space:]]+daemon([[:space:]]|$$)' || true)"; \
+		if [ -n "$$PIDS" ]; then \
+			echo "Stopping existing pp-starlink daemon process(es): $$PIDS"; \
+			for PID in $$PIDS; do \
+				OWNER="$$(ps -o user= -p "$$PID" 2>/dev/null | tr -d ' ' || true)"; \
+				if [ -z "$$OWNER" ]; then \
+					echo "Warning: pid $$PID no longer exists"; \
+					continue; \
+				fi; \
+				if [ "$$OWNER" != "$$(id -un)" ]; then \
+					echo "Warning: skipping pid $$PID owned by $$OWNER"; \
+					continue; \
+				fi; \
+				if kill "$$PID" >/dev/null 2>&1; then \
+					:; \
+				else \
+					echo "Warning: could not stop pid $$PID (permission denied or already exited)"; \
+				fi; \
+			done; \
+		fi; \
+		fi; \
+		} || echo "Warning: daemon stop step failed; continuing startup";
 	$(MAKE) bootstrap BOOTSTRAP_BUILD=1
 	./bin/pp-starlink init
 	@echo "Location setup:"; \
@@ -80,6 +103,15 @@ bootstrap-check: bootstrap
 		venv/bin/athena test tests/athena; \
 	else \
 		echo "Athena CLI is not installed in venv. Install it, then run: venv/bin/athena test tests/athena"; \
+		exit 1; \
+	fi
+
+# Canonical test target for this repo (Athena baseline checks).
+test:
+	@if [ -x venv/bin/athena ]; then \
+		venv/bin/athena test tests/athena; \
+	else \
+		echo "Athena CLI is not installed in venv. Run: make bootstrap"; \
 		exit 1; \
 	fi
 

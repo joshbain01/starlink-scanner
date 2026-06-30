@@ -54,17 +54,19 @@ func cmdServe(cfg Config) {
 		defer cancel()
 
 		var (
-			mu                        sync.Mutex
-			status                    starlink.Status
-			info                      starlink.DeviceInfo
-			history                   starlink.History
-			statErr, infoErr, histErr error
-			wg                        sync.WaitGroup
+			mu                                sync.Mutex
+			status                            starlink.Status
+			info                              starlink.DeviceInfo
+			history                           starlink.History
+			location                          starlink.Location
+			statErr, infoErr, histErr, locErr error
+			wg                                sync.WaitGroup
 		)
-		wg.Add(3)
+		wg.Add(4)
 		go func() { defer wg.Done(); mu.Lock(); status, statErr = sc.GetStatus(ctx); mu.Unlock() }()
 		go func() { defer wg.Done(); mu.Lock(); info, infoErr = sc.GetDeviceInfo(ctx); mu.Unlock() }()
 		go func() { defer wg.Done(); mu.Lock(); history, histErr = sc.GetHistory(ctx); mu.Unlock() }()
+		go func() { defer wg.Done(); mu.Lock(); location, locErr = sc.GetLocation(ctx); mu.Unlock() }()
 		wg.Wait()
 
 		if statErr != nil {
@@ -77,13 +79,16 @@ func cmdServe(cfg Config) {
 		if histErr != nil {
 			log.Printf("serve /api/status GetHistory: %v (continuing)", histErr)
 		}
+		if locErr != nil {
+			log.Printf("serve /api/status GetLocation: %v (continuing)", locErr)
+		}
 
 		// Build the same statusJSON shape as printStatusJSON uses.
 		type outageJSON struct {
-			Cause              string  `json:"cause"`
-			StartTimestampNs   int64   `json:"start_timestamp_ns"`
-			DurationMs         float64 `json:"duration_ms"`
-			DidSwitch          bool    `json:"did_switch"`
+			Cause            string  `json:"cause"`
+			StartTimestampNs int64   `json:"start_timestamp_ns"`
+			DurationMs       float64 `json:"duration_ms"`
+			DidSwitch        bool    `json:"did_switch"`
 		}
 		var outages []outageJSON
 		for _, o := range history.Outages {
@@ -102,17 +107,34 @@ func cmdServe(cfg Config) {
 		}
 
 		type respBody struct {
-			DishID                      string       `json:"dish_id"`
-			HardwareVersion             string       `json:"hardware_version"`
-			SoftwareVersion             string       `json:"software_version"`
-			Bootcount                   int32        `json:"bootcount"`
-			UptimeS                     uint64       `json:"uptime_s"`
-			BoresightAzimuthDeg         float32      `json:"boresight_azimuth_deg"`
-			BoresightElevationDeg       float32      `json:"boresight_elevation_deg"`
-			TiltAngleDeg                float32      `json:"tilt_angle_deg"`
-			AttitudeUncertaintyDeg      float32      `json:"attitude_uncertainty_deg"`
-			IsSnrAboveNoiseFloor        bool         `json:"is_snr_above_noise_floor"`
-			IsSnrPersistentlyLow        bool         `json:"is_snr_persistently_low"`
+			DishID                 string  `json:"dish_id"`
+			HardwareVersion        string  `json:"hardware_version"`
+			SoftwareVersion        string  `json:"software_version"`
+			Bootcount              int32   `json:"bootcount"`
+			UptimeS                uint64  `json:"uptime_s"`
+			BoresightAzimuthDeg    float32 `json:"boresight_azimuth_deg"`
+			BoresightElevationDeg  float32 `json:"boresight_elevation_deg"`
+			TiltAngleDeg           float32 `json:"tilt_angle_deg"`
+			AttitudeUncertaintyDeg float32 `json:"attitude_uncertainty_deg"`
+			IsSnrAboveNoiseFloor   bool    `json:"is_snr_above_noise_floor"`
+			IsSnrPersistentlyLow   bool    `json:"is_snr_persistently_low"`
+			MobilityClass          string  `json:"mobility_class,omitempty"`
+			IsMovingFastPersisted  bool    `json:"is_moving_fast_persisted"`
+			GpsValid               bool    `json:"gps_valid"`
+			GpsSats                int32   `json:"gps_sats"`
+			Quaternion             *struct {
+				W float32 `json:"w"`
+				X float32 `json:"x"`
+				Y float32 `json:"y"`
+				Z float32 `json:"z"`
+			} `json:"ned2dish_quaternion,omitempty"`
+			Location *struct {
+				Lat       float64 `json:"lat"`
+				Lon       float64 `json:"lon"`
+				AltitudeM float64 `json:"altitude_m"`
+				Valid     bool    `json:"valid"`
+				Timestamp string  `json:"timestamp,omitempty"`
+			} `json:"location,omitempty"`
 			POPLatencyMs                float32      `json:"pop_latency_ms"`
 			POPDropRate                 float32      `json:"pop_drop_rate"`
 			DownlinkBps                 float32      `json:"downlink_bps"`
@@ -137,6 +159,10 @@ func cmdServe(cfg Config) {
 			AttitudeUncertaintyDeg:      status.AttitudeUncertaintyDeg,
 			IsSnrAboveNoiseFloor:        status.IsSnrAboveNoiseFloor,
 			IsSnrPersistentlyLow:        status.IsSnrPersistentlyLow,
+			MobilityClass:               status.MobilityClass,
+			IsMovingFastPersisted:       status.IsMovingFastPersisted,
+			GpsValid:                    status.GpsValid,
+			GpsSats:                     status.GpsSats,
 			POPLatencyMs:                status.POPLatencyMs,
 			POPDropRate:                 status.POPDropRate,
 			DownlinkBps:                 status.DownlinkBps,
@@ -148,6 +174,36 @@ func cmdServe(cfg Config) {
 			OutageCause:                 status.OutageCause,
 			Alerts:                      activeAlerts(status.Alerts),
 			RecentOutages:               outages,
+		}
+		if status.Quaternion != nil {
+			body.Quaternion = &struct {
+				W float32 `json:"w"`
+				X float32 `json:"x"`
+				Y float32 `json:"y"`
+				Z float32 `json:"z"`
+			}{
+				W: status.Quaternion.W,
+				X: status.Quaternion.X,
+				Y: status.Quaternion.Y,
+				Z: status.Quaternion.Z,
+			}
+		}
+		if location.Valid {
+			body.Location = &struct {
+				Lat       float64 `json:"lat"`
+				Lon       float64 `json:"lon"`
+				AltitudeM float64 `json:"altitude_m"`
+				Valid     bool    `json:"valid"`
+				Timestamp string  `json:"timestamp,omitempty"`
+			}{
+				Lat:       location.Lat,
+				Lon:       location.Lon,
+				AltitudeM: location.AltitudeM,
+				Valid:     true,
+			}
+			if !location.Timestamp.IsZero() {
+				body.Location.Timestamp = location.Timestamp.UTC().Format(time.RFC3339Nano)
+			}
 		}
 		jsonOK(w, body)
 	})
@@ -163,34 +219,34 @@ func cmdServe(cfg Config) {
 			return
 		}
 		type row struct {
-			Timestamp               string   `json:"timestamp"`
-			PacketLoss              float64  `json:"packet_loss"`
-			BeaconSNR               *float64 `json:"beacon_snr,omitempty"`
-			NoiseFloor              *float64 `json:"noise_floor,omitempty"`
-			BaselineSNR             *float64 `json:"baseline_snr,omitempty"`
-			BaselineNoise           *float64 `json:"baseline_noise,omitempty"`
-			LowerSignalThanPredicted bool    `json:"lower_signal_than_predicted"`
-			IsSnrAboveNoiseFloor    bool     `json:"is_snr_above_noise_floor"`
-			Cause                   string   `json:"cause"`
-			SatelliteID             *string  `json:"satellite_id,omitempty"`
-			Azimuth                 *float64 `json:"azimuth,omitempty"`
-			Elevation               *float64 `json:"elevation,omitempty"`
+			Timestamp                string   `json:"timestamp"`
+			PacketLoss               float64  `json:"packet_loss"`
+			BeaconSNR                *float64 `json:"beacon_snr,omitempty"`
+			NoiseFloor               *float64 `json:"noise_floor,omitempty"`
+			BaselineSNR              *float64 `json:"baseline_snr,omitempty"`
+			BaselineNoise            *float64 `json:"baseline_noise,omitempty"`
+			LowerSignalThanPredicted bool     `json:"lower_signal_than_predicted"`
+			IsSnrAboveNoiseFloor     bool     `json:"is_snr_above_noise_floor"`
+			Cause                    string   `json:"cause"`
+			SatelliteID              *string  `json:"satellite_id,omitempty"`
+			Azimuth                  *float64 `json:"azimuth,omitempty"`
+			Elevation                *float64 `json:"elevation,omitempty"`
 		}
 		out := make([]row, len(events))
 		for i, e := range events {
 			out[i] = row{
-				Timestamp:               e.Timestamp.Format(time.RFC3339),
-				PacketLoss:              e.PacketLoss,
-				BeaconSNR:               e.BeaconSNR,
-				NoiseFloor:              e.NoiseFloor,
-				BaselineSNR:             e.BaselineSNR,
-				BaselineNoise:           e.BaselineNoise,
+				Timestamp:                e.Timestamp.Format(time.RFC3339),
+				PacketLoss:               e.PacketLoss,
+				BeaconSNR:                e.BeaconSNR,
+				NoiseFloor:               e.NoiseFloor,
+				BaselineSNR:              e.BaselineSNR,
+				BaselineNoise:            e.BaselineNoise,
 				LowerSignalThanPredicted: e.LowerSignalThanPredicted,
-				IsSnrAboveNoiseFloor:    e.IsSnrAboveNoiseFloor,
-				Cause:                   e.Cause,
-				SatelliteID:             e.SatelliteID,
-				Azimuth:                 e.Azimuth,
-				Elevation:               e.Elevation,
+				IsSnrAboveNoiseFloor:     e.IsSnrAboveNoiseFloor,
+				Cause:                    e.Cause,
+				SatelliteID:              e.SatelliteID,
+				Azimuth:                  e.Azimuth,
+				Elevation:                e.Elevation,
 			}
 		}
 		jsonOK(w, out)

@@ -252,10 +252,11 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 	}()
 
 	var (
-		mu      sync.Mutex
-		pings   [3]ping.Result
-		history starlink.History
-		wg      sync.WaitGroup
+		mu       sync.Mutex
+		pings    [3]ping.Result
+		history  starlink.History
+		location starlink.Location
+		wg       sync.WaitGroup
 	)
 
 	// Kick off pings.
@@ -291,6 +292,20 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 		mu.Unlock()
 	}()
 
+	// Best-effort location fetch: do not fail the tick when unavailable.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		loc, err := c.sc.GetLocation(ctx)
+		if err != nil {
+			log.Printf("grpc location: %v", err)
+			return
+		}
+		mu.Lock()
+		location = loc
+		mu.Unlock()
+	}()
+
 	status, grpcErr := c.sc.GetStatus(ctx)
 	wg.Wait()
 
@@ -312,6 +327,46 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 		el := status.BoresightElevationDeg
 		t := status.TiltAngleDeg
 		bAz, bEl, tilt = &az, &el, &t
+	}
+
+	var mobilityClass *string
+	if status.MobilityClass != "" {
+		m := status.MobilityClass
+		mobilityClass = &m
+	}
+
+	isMovingFast := status.IsMovingFastPersisted
+	var isMovingFastPtr *bool
+	if mobilityClass != nil {
+		isMovingFastPtr = &isMovingFast
+	}
+
+	gpsValid := status.GpsValid
+	gpsSats := status.GpsSats
+	var gpsValidPtr *bool
+	var gpsSatsPtr *int32
+	if status.GpsSats > 0 || status.GpsValid {
+		gpsValidPtr = &gpsValid
+		gpsSatsPtr = &gpsSats
+	}
+
+	var gpsLatPtr, gpsLonPtr, gpsAltPtr *float64
+	if location.Valid {
+		lat := location.Lat
+		lon := location.Lon
+		alt := location.AltitudeM
+		gpsLatPtr = &lat
+		gpsLonPtr = &lon
+		gpsAltPtr = &alt
+	}
+
+	var quatW, quatX, quatY, quatZ *float64
+	if status.Quaternion != nil {
+		w := float64(status.Quaternion.W)
+		x := float64(status.Quaternion.X)
+		y := float64(status.Quaternion.Y)
+		z := float64(status.Quaternion.Z)
+		quatW, quatX, quatY, quatZ = &w, &x, &y, &z
 	}
 
 	s := db.NetworkSample{
@@ -347,6 +402,17 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 		RouterWaterDetected:         status.Alerts.RouterWaterDetected,
 		NoEthernetLink:              status.Alerts.NoEthernetLink,
 		Roaming:                     status.Alerts.Roaming,
+		MobilityClass:               mobilityClass,
+		IsMovingFast:                isMovingFastPtr,
+		GpsValid:                    gpsValidPtr,
+		GpsSats:                     gpsSatsPtr,
+		GpsLat:                      gpsLatPtr,
+		GpsLon:                      gpsLonPtr,
+		GpsAltitudeM:                gpsAltPtr,
+		QuatW:                       quatW,
+		QuatX:                       quatX,
+		QuatY:                       quatY,
+		QuatZ:                       quatZ,
 		MaxLatencyMs:                maxLat,
 		MinLatencyMs:                minLat,
 		BriefOutageCount:            briefCount,

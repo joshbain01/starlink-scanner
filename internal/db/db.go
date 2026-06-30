@@ -61,6 +61,17 @@ type NetworkSample struct {
 	RouterWaterDetected        bool
 	NoEthernetLink             bool
 	Roaming                    bool
+	MobilityClass              *string
+	IsMovingFast               *bool
+	GpsValid                   *bool
+	GpsSats                    *int32
+	GpsLat                     *float64
+	GpsLon                     *float64
+	GpsAltitudeM               *float64
+	QuatW                      *float64
+	QuatX                      *float64
+	QuatY                      *float64
+	QuatZ                      *float64
 
 	// History-derived window stats (last 15 seconds)
 	MaxLatencyMs         float32
@@ -201,6 +212,17 @@ var migrations = []migration{
 	{8, `ALTER TABLE network_telemetry ADD COLUMN brief_outage_duration_s REAL`},
 	{9, `ALTER TABLE network_telemetry ADD COLUMN pop_ip TEXT`},
 	{9, `ALTER TABLE network_telemetry ADD COLUMN pop_path_changed INTEGER`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN mobility_class TEXT`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN is_moving_fast INTEGER`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN gps_valid INTEGER`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN gps_sats INTEGER`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN gps_lat REAL`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN gps_lon REAL`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN gps_altitude_m REAL`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN quat_w REAL`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN quat_x REAL`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN quat_y REAL`},
+	{10, `ALTER TABLE network_telemetry ADD COLUMN quat_z REAL`},
 }
 
 func (d *DB) runMigrations() error {
@@ -287,9 +309,12 @@ func (d *DB) WriteNetwork(s NetworkSample) error {
 			 alert_is_heating, alert_power_supply_thermal_throttle,
 			 alert_dish_water_detected, alert_router_water_detected,
 			 alert_no_ethernet_link, alert_roaming,
+			 mobility_class, is_moving_fast,
+			 gps_valid, gps_sats, gps_lat, gps_lon, gps_altitude_m,
+			 quat_w, quat_x, quat_y, quat_z,
 			 max_latency_ms, min_latency_ms,
 			 brief_outage_count, brief_outage_duration_s)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		s.Timestamp.Unix(), s.UptimeS, s.ObstructionFraction, flags,
 		s.GatewayJitterMs, s.POPJitterMs, s.PublicPacketLoss,
 		s.POPIP, boolInt(s.POPPathChanged),
@@ -304,6 +329,9 @@ func (d *DB) WriteNetwork(s NetworkSample) error {
 		boolInt(s.IsHeating), boolInt(s.PowerSupplyThermalThrottle),
 		boolInt(s.DishWaterDetected), boolInt(s.RouterWaterDetected),
 		boolInt(s.NoEthernetLink), boolInt(s.Roaming),
+		s.MobilityClass, boolPtrInt(s.IsMovingFast),
+		boolPtrInt(s.GpsValid), s.GpsSats, s.GpsLat, s.GpsLon, s.GpsAltitudeM,
+		s.QuatW, s.QuatX, s.QuatY, s.QuatZ,
 		s.MaxLatencyMs, s.MinLatencyMs,
 		s.BriefOutageCount, s.BriefOutageDurationS,
 	)
@@ -355,6 +383,16 @@ func (d *DB) SpatialBuckets(lossThreshold float64) ([]SpatialBucket, error) {
 
 func boolInt(b bool) int {
 	if b {
+		return 1
+	}
+	return 0
+}
+
+func boolPtrInt(b *bool) any {
+	if b == nil {
+		return nil
+	}
+	if *b {
 		return 1
 	}
 	return 0

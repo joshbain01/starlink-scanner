@@ -26,41 +26,45 @@ func Dial(addr string) (*Client, error) {
 func (c *Client) Close() { c.conn.Close() }
 
 type Alerts struct {
-	MotorsStuck                 bool
-	ThermalThrottle             bool
-	ThermalShutdown             bool
-	MastNotNearVertical         bool
-	UnexpectedLocation          bool
-	SlowEthernet                bool
-	SlowEthernet100             bool
-	Roaming                     bool
-	InstallPending              bool
-	IsHeating                   bool
-	PowerSupplyThermalThrottle  bool
-	IsPowerSaveIdle             bool
-	DbfTelemStale               bool
-	LowMotorCurrent             bool
-	LowerSignalThanPredicted    bool
-	ObstructionMapReset         bool
-	DishWaterDetected           bool
-	RouterWaterDetected         bool
-	UpsuRouterPortSlow          bool
-	NoEthernetLink              bool
+	MotorsStuck                bool
+	ThermalThrottle            bool
+	ThermalShutdown            bool
+	MastNotNearVertical        bool
+	UnexpectedLocation         bool
+	SlowEthernet               bool
+	SlowEthernet100            bool
+	Roaming                    bool
+	InstallPending             bool
+	IsHeating                  bool
+	PowerSupplyThermalThrottle bool
+	IsPowerSaveIdle            bool
+	DbfTelemStale              bool
+	LowMotorCurrent            bool
+	LowerSignalThanPredicted   bool
+	ObstructionMapReset        bool
+	DishWaterDetected          bool
+	RouterWaterDetected        bool
+	UpsuRouterPortSlow         bool
+	NoEthernetLink             bool
 }
 
 type Status struct {
-	UptimeS              uint64
-	ObstructionFraction  float32
-	CurrentlyObstructed  bool
-	IsSnrAboveNoiseFloor bool
-	IsSnrPersistentlyLow bool
-	POPLatencyMs         float32
-	POPDropRate          float32
-	DownlinkBps          float32
-	UplinkBps            float32
-	OutageCause          string
-	EthSpeedMbps         int32
-	IsCellDisabled       bool
+	UptimeS               uint64
+	ObstructionFraction   float32
+	CurrentlyObstructed   bool
+	IsSnrAboveNoiseFloor  bool
+	IsSnrPersistentlyLow  bool
+	MobilityClass         string
+	IsMovingFastPersisted bool
+	GpsValid              bool
+	GpsSats               int32
+	POPLatencyMs          float32
+	POPDropRate           float32
+	DownlinkBps           float32
+	UplinkBps             float32
+	OutageCause           string
+	EthSpeedMbps          int32
+	IsCellDisabled        bool
 
 	// Physical dish pointing (from dish firmware)
 	BoresightAzimuthDeg          float32
@@ -73,8 +77,24 @@ type Status struct {
 	// SpaceX throttle reasons (empty string = no limit)
 	DLBandwidthRestrictedReason string
 	ULBandwidthRestrictedReason string
+	Quaternion                  *Quaternion
 
 	Alerts Alerts
+}
+
+type Quaternion struct {
+	W float32
+	X float32
+	Y float32
+	Z float32
+}
+
+type Location struct {
+	Lat       float64
+	Lon       float64
+	AltitudeM float64
+	Valid     bool
+	Timestamp time.Time
 }
 
 type OutageEvent struct {
@@ -149,6 +169,16 @@ func (c *Client) GetStatus(ctx context.Context) (Status, error) {
 		outageCause = o.Cause.String()
 	}
 
+	mobilityClass := ""
+	if d.MobilityClass != pb.UserMobilityClass_MOBILITY_UNKNOWN {
+		mobilityClass = d.MobilityClass.String()
+	}
+
+	var quat *Quaternion
+	if q := d.GetNed2DishQuaternion(); q != nil {
+		quat = &Quaternion{W: q.W, X: q.X, Y: q.Y, Z: q.Z}
+	}
+
 	dlReason := rateLimitString(d.DlBandwidthRestrictedReason)
 	ulReason := rateLimitString(d.UlBandwidthRestrictedReason)
 
@@ -166,6 +196,10 @@ func (c *Client) GetStatus(ctx context.Context) (Status, error) {
 		CurrentlyObstructed:          d.GetObstructionStats().GetCurrentlyObstructed(),
 		IsSnrAboveNoiseFloor:         d.IsSnrAboveNoiseFloor,
 		IsSnrPersistentlyLow:         d.IsSnrPersistentlyLow,
+		MobilityClass:                mobilityClass,
+		IsMovingFastPersisted:        d.IsMovingFastPersisted,
+		GpsValid:                     d.GetGpsStats().GetGpsValid(),
+		GpsSats:                      int32(d.GetGpsStats().GetGpsSats()),
 		POPLatencyMs:                 d.GetPopPingLatencyMs(),
 		POPDropRate:                  d.GetPopPingDropRate(),
 		DownlinkBps:                  d.GetDownlinkThroughputBps(),
@@ -181,8 +215,40 @@ func (c *Client) GetStatus(ctx context.Context) (Status, error) {
 		DesiredBoresightElevationDeg: desiredEl,
 		DLBandwidthRestrictedReason:  dlReason,
 		ULBandwidthRestrictedReason:  ulReason,
+		Quaternion:                   quat,
 		Alerts:                       alerts,
 	}, nil
+}
+
+func (c *Client) GetLocation(ctx context.Context) (Location, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := c.svc.Handle(ctx, &pb.Request{
+		Request: &pb.Request_GetLocation{GetLocation: &pb.GetLocationRequest{}},
+	})
+	if err != nil {
+		return Location{}, err
+	}
+
+	loc := resp.GetGetLocation()
+	if loc == nil {
+		return Location{}, nil
+	}
+
+	out := Location{
+		Lat:       loc.GetLatitude(),
+		Lon:       loc.GetLongitude(),
+		AltitudeM: loc.GetAltitudeM(),
+		Valid:     loc.GetValid(),
+	}
+	if ts := loc.GetTimestampNs(); ts > 0 {
+		out.Timestamp = time.Unix(0, ts)
+	}
+	if !out.Valid && out.Lat != 0 && out.Lon != 0 {
+		out.Valid = true
+	}
+	return out, nil
 }
 
 func (c *Client) GetHistory(ctx context.Context) (History, error) {

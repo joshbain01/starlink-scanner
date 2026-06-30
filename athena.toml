@@ -159,3 +159,6 @@ triggered = [
 
 [ci]
 python-version = "3.12"
+
+[pip]
+floor = "26.1.2"

@@ -25,7 +25,7 @@ BASELINE_FLAGS ?= $(if $(BASELINE),-b) $(if $(VERBOSE),-v) $(if $(ARTIFACTS),-a)
 # under the best interpreter satisfying requires-python, so a bare default
 # such as `python3` is sufficient even if it is too old.
 venv: $(ATHENA_VENV)/bin/activate
-$(ATHENA_VENV)/bin/activate: requirements.lock requirements-dev.lock
+$(ATHENA_VENV)/bin/activate: requirements.lock requirements-dev.lock requirements-athena.lock
 	@$(ATHENA_PYTHON) .athena/bootstrap.py $(ATHENA_VENV)
 	@$(ATHENA_PYTHON) .athena/fetch_wheel.py $(ATHENA_VENV)
 	@$(ATHENA_VENV)/bin/athena upgrade $(TAG)
@@ -56,7 +56,7 @@ rebuild: clean venv test-athena
 # Lockfile-pure venv for pre-push validation. Non-destructive.
 # Rebuilds only when lockfiles change.  Delegates to `make venv`
 # so the build pathway is not duplicated.
-$(ATHENA_CI_VENV)/.stamp: requirements.lock requirements-dev.lock
+$(ATHENA_CI_VENV)/.stamp: requirements.lock requirements-dev.lock requirements-athena.lock
 	@rm -rf $(ATHENA_CI_VENV)
 	@$(MAKE) venv ATHENA_VENV=$(ATHENA_CI_VENV)
 	@touch $(ATHENA_CI_VENV)/.stamp

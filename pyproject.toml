@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Root-cause analysis tool for Starlink MOS drops"
 requires-python = ">=3.12"
 dependencies = [
-    "click>=8.1",
+    "click>=8.4.2",
 ]
 
 [project.optional-dependencies]
@@ -37,3 +37,13 @@ include = ["pp_starlink*"]
 python_version = "3.10"
 strict = true
 ignore_missing_imports = true
+
+[tool.deptry.package_module_name_map]
+metrostar-athena = [
+    "athena",
+]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = [
+    "metrostar-athena",
+]

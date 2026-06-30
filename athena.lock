@@ -1,11 +1,11 @@
 {
   "schema_version": 2,
-  "content_hash": "1f47a35f0ef27e70be12823f8aced0897e0e2756aba2835369b14ed9504ba5dc",
+  "content_hash": "252d3bfac451720e51279103a6ef184d0269831d86f83186e1af642bdf7917e7",
   "provenance": {
     "athena_version": "4.3.1",
     "pip_version": "26.1.2",
     "python_version": "3.13.14",
-    "git_sha": "4c1b45c",
+    "git_sha": "2f699ae",
     "timestamp": "2026-06-30"
   },
   "targets": [
@@ -34,6 +34,21 @@
       "lockfile": "requirements-dev.lock",
       "lockfile_sha256": "f81736b9090f1500f702dde345a06f58a37c5efb25805b18efd48fc9cb5f1f7d",
       "packages": 12
+    },
+    {
+      "label": "athena",
+      "lockfile": "requirements-athena.lock",
+      "lockfile_sha256": "e99f237282896c4649ec554e7fdc7611bb7e698ca0085d8f6cbd0ac6f0232d8e",
+      "packages": 17
+    }
+  ],
+  "wheels": [
+    {
+      "source": "metrostar-athena @ git+https://github.com/MetroStar/athena.git@v4.3.1",
+      "filename": "metrostar_athena-4.3.1-py3-none-any.whl",
+      "sha256": "b8671f5eb6aed766fa188b058e38b83b8fcaa74567072517327fb3683df03ae6",
+      "asset_url": "https://api.github.com/repos/MetroStar/athena/releases/assets/450391118",
+      "requires_python": ">=3.8"
     }
   ],
   "athena_dependencies": [
