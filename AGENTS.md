@@ -136,6 +136,28 @@ For CLI/data-path changes:
 ./bin/pp-starlink insights --compact
 ```
 
+For the Python RCA pipeline:
+
+```bash
+# Collect signals
+venv/bin/pp-starlink collect
+
+# Detect incidents and run RCA engine
+venv/bin/pp-starlink analyze
+
+# Human report
+venv/bin/pp-starlink report
+
+# JSON report (machine-readable)
+venv/bin/pp-starlink report --json-output
+
+# AI bundle (everything an AI needs for RCA in one JSON object)
+venv/bin/pp-starlink report --ai-bundle
+
+# List stored incidents
+venv/bin/pp-starlink incident
+```
+
 For ingestion/loop behavior:
 
 ```bash

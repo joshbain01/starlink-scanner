@@ -34,7 +34,11 @@ sync-start:
 		fi; \
 		./bin/pp-starlink set-location --lat "$$LAT_IN" --lon "$$LON_IN"; \
 	fi
-	@echo "sync-start complete. Next: ./bin/pp-starlink status --json && ./bin/pp-starlink daemon"
+	@echo "sync-start complete."
+	@echo "  Go daemon:    ./bin/pp-starlink daemon"
+	@echo "  Live status:  ./bin/pp-starlink status --json"
+	@echo "  RCA pipeline: venv/bin/pp-starlink analyze && venv/bin/pp-starlink report"
+	@echo "  AI bundle:    venv/bin/pp-starlink report --ai-bundle"
 
 # One-command local bootstrap for developers and agents.
 # Creates/updates venv and installs lockfile deps.
@@ -82,9 +86,7 @@ cleanup:
 	rm -rf web/node_modules
 	rm -rf .athena/output
 	find . -type d -name "__pycache__" -prune -exec rm -rf {} +
-	@if [ -d .git ]; then \
-		git ls-files -z '*/__pycache__/*.pyc' | xargs -0 -r git restore --; \
-	fi
+	@echo "Cleanup complete."
 	@echo "Cleanup complete: removed local artifacts and restored tracked cache files."
 
 # Pull live descriptor from dish to confirm field numbers still match:

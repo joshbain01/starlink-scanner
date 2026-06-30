@@ -135,13 +135,29 @@ make bootstrap BOOTSTRAP_BUILD=1
 ./bin/pp-starlink daemon
 ```
 
-7. In a second terminal, run analysis commands:
+7. In a second terminal, run Go analysis commands:
 
 ```bash
 ./bin/pp-starlink insights --compact
 ./bin/pp-starlink predict-window --duration 60
 # Dev/demo without historical zones:
 ./bin/pp-starlink predict-window --duration 60 --synthetic
+```
+
+8. Run the Python RCA pipeline (after collecting telemetry):
+
+```bash
+# Collect signals from the telemetry DB
+venv/bin/pp-starlink collect
+
+# Detect incidents and classify root causes
+venv/bin/pp-starlink analyze
+
+# Human-readable report
+venv/bin/pp-starlink report
+
+# AI-first bundle (single JSON object with everything for RCA)
+venv/bin/pp-starlink report --ai-bundle
 ```
 
 8. If you prefer full-stack runtime instead of direct CLI:
