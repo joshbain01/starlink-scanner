@@ -67,12 +67,12 @@ func cmdStatus(cfg Config) {
 	defer cancel()
 
 	var (
-		mu      sync.Mutex
-		status  starlink.Status
-		info    starlink.DeviceInfo
-		history starlink.History
+		mu                        sync.Mutex
+		status                    starlink.Status
+		info                      starlink.DeviceInfo
+		history                   starlink.History
 		statErr, infoErr, histErr error
-		wg      sync.WaitGroup
+		wg                        sync.WaitGroup
 	)
 	wg.Add(3)
 	go func() { defer wg.Done(); mu.Lock(); status, statErr = sc.GetStatus(ctx); mu.Unlock() }()
@@ -113,8 +113,12 @@ func printStatusHuman(status starlink.Status, info starlink.DeviceInfo, history 
 	fmt.Printf("Ethernet:  %d Mbps\n", status.EthSpeedMbps)
 
 	dlR, ulR := status.DLBandwidthRestrictedReason, status.ULBandwidthRestrictedReason
-	if dlR == "" { dlR = "none" }
-	if ulR == "" { ulR = "none" }
+	if dlR == "" {
+		dlR = "none"
+	}
+	if ulR == "" {
+		ulR = "none"
+	}
 	fmt.Printf("Throttle:  dl=%s  ul=%s\n", dlR, ulR)
 
 	if status.OutageCause != "" {
@@ -133,8 +137,8 @@ func printStatusHuman(status starlink.Status, info starlink.DeviceInfo, history 
 
 	if len(history.Outages) > 0 {
 		type summary struct {
-			cause string
-			count int
+			cause   string
+			count   int
 			totalNs uint64
 		}
 		byC := map[string]*summary{}
@@ -158,28 +162,28 @@ func printStatusHuman(status starlink.Status, info starlink.DeviceInfo, history 
 }
 
 type statusJSON struct {
-	DishID                       string   `json:"dish_id"`
-	HardwareVersion              string   `json:"hardware_version"`
-	SoftwareVersion              string   `json:"software_version"`
-	Bootcount                    int32    `json:"bootcount"`
-	UptimeS                      uint64   `json:"uptime_s"`
-	BoresightAzimuthDeg          float32  `json:"boresight_azimuth_deg"`
-	BoresightElevationDeg        float32  `json:"boresight_elevation_deg"`
-	TiltAngleDeg                 float32  `json:"tilt_angle_deg"`
-	AttitudeUncertaintyDeg       float32  `json:"attitude_uncertainty_deg"`
-	IsSnrAboveNoiseFloor         bool     `json:"is_snr_above_noise_floor"`
-	IsSnrPersistentlyLow         bool     `json:"is_snr_persistently_low"`
-	POPLatencyMs                 float32  `json:"pop_latency_ms"`
-	POPDropRate                  float32  `json:"pop_drop_rate"`
-	DownlinkBps                  float32  `json:"downlink_bps"`
-	UplinkBps                    float32  `json:"uplink_bps"`
-	EthSpeedMbps                 int32    `json:"eth_speed_mbps"`
-	IsCellDisabled               bool     `json:"is_cell_disabled"`
-	DLBandwidthRestrictedReason  string   `json:"dl_bandwidth_restricted_reason"`
-	ULBandwidthRestrictedReason  string   `json:"ul_bandwidth_restricted_reason"`
-	OutageCause                  string   `json:"outage_cause,omitempty"`
-	Alerts                       []string `json:"alerts"`
-	RecentOutages                []outageJSON `json:"recent_outages_15min"`
+	DishID                      string       `json:"dish_id"`
+	HardwareVersion             string       `json:"hardware_version"`
+	SoftwareVersion             string       `json:"software_version"`
+	Bootcount                   int32        `json:"bootcount"`
+	UptimeS                     uint64       `json:"uptime_s"`
+	BoresightAzimuthDeg         float32      `json:"boresight_azimuth_deg"`
+	BoresightElevationDeg       float32      `json:"boresight_elevation_deg"`
+	TiltAngleDeg                float32      `json:"tilt_angle_deg"`
+	AttitudeUncertaintyDeg      float32      `json:"attitude_uncertainty_deg"`
+	IsSnrAboveNoiseFloor        bool         `json:"is_snr_above_noise_floor"`
+	IsSnrPersistentlyLow        bool         `json:"is_snr_persistently_low"`
+	POPLatencyMs                float32      `json:"pop_latency_ms"`
+	POPDropRate                 float32      `json:"pop_drop_rate"`
+	DownlinkBps                 float32      `json:"downlink_bps"`
+	UplinkBps                   float32      `json:"uplink_bps"`
+	EthSpeedMbps                int32        `json:"eth_speed_mbps"`
+	IsCellDisabled              bool         `json:"is_cell_disabled"`
+	DLBandwidthRestrictedReason string       `json:"dl_bandwidth_restricted_reason"`
+	ULBandwidthRestrictedReason string       `json:"ul_bandwidth_restricted_reason"`
+	OutageCause                 string       `json:"outage_cause,omitempty"`
+	Alerts                      []string     `json:"alerts"`
+	RecentOutages               []outageJSON `json:"recent_outages_15min"`
 }
 
 type outageJSON struct {
@@ -231,7 +235,9 @@ func printStatusJSON(status starlink.Status, info starlink.DeviceInfo, history s
 func activeAlerts(a starlink.Alerts) []string {
 	var out []string
 	check := func(v bool, name string) {
-		if v { out = append(out, name) }
+		if v {
+			out = append(out, name)
+		}
 	}
 	check(a.ThermalShutdown, "thermal_shutdown")
 	check(a.ThermalThrottle, "thermal_throttle")
@@ -322,6 +328,11 @@ func cmdReport(cfg Config) {
 		fmt.Printf("\n## Outage bursts (consecutive 100%% loss)\n")
 		fmt.Printf("  Total: %d bursts, %.0f min total outage time\n",
 			rpt.Bursts.TotalBursts, rpt.Bursts.TotalOutageTime.Minutes())
+		fmt.Printf("  Shape: avg=%.1fm  p95=%.1fm  max=%.1fm  severe(>=3m)=%d\n",
+			rpt.Bursts.Shape.AvgMinutes,
+			rpt.Bursts.Shape.P95Minutes,
+			rpt.Bursts.Shape.MaxMinutes,
+			rpt.Bursts.Shape.SevereBursts)
 		fmt.Printf("  Worst %d:\n", len(rpt.Bursts.Worst))
 		fmt.Printf("    %-22s %-22s %9s\n", "Start", "End", "Duration")
 		for _, b := range rpt.Bursts.Worst {
@@ -361,6 +372,26 @@ func cmdReport(cfg Config) {
 			fmt.Printf("  %-28s %-20s %5d  %6.0f%%  %6.0f%%\n",
 				s.SatID, gen, s.Incidents, s.AvgLoss*100, s.MaxLoss*100)
 		}
+	}
+
+	pp := rpt.POPPath
+	if pp.SamplesStable+pp.SamplesAfter > 0 {
+		fmt.Printf("\n## POP path changes\n")
+		fmt.Printf("  Distinct POPs observed: %d\n", pp.DistinctPOPCount)
+		if pp.LastPOP != "" {
+			fmt.Printf("  Current POP IP: %s\n", pp.LastPOP)
+		}
+		fmt.Printf("  Path-change events: %d\n", pp.Changes)
+		afterPct := 0.0
+		if pp.SamplesAfter > 0 {
+			afterPct = float64(pp.DropsAfter) / float64(pp.SamplesAfter) * 100
+		}
+		stablePct := 0.0
+		if pp.SamplesStable > 0 {
+			stablePct = float64(pp.DropsStable) / float64(pp.SamplesStable) * 100
+		}
+		fmt.Printf("  Drop rate on change samples: %.1f%% (%d/%d)\n", afterPct, pp.DropsAfter, pp.SamplesAfter)
+		fmt.Printf("  Drop rate on stable samples: %.1f%% (%d/%d)\n", stablePct, pp.DropsStable, pp.SamplesStable)
 	}
 
 	ho := rpt.Handoffs
@@ -699,13 +730,13 @@ func cmdInsights(cfg Config, compact bool) {
 		t := e.Timestamp.Format(time.RFC3339)
 		sat := fmtSat(e.SatelliteID, e.Azimuth, e.Elevation)
 		if compact {
-			fmt.Printf("- %s loss=%.0f%%%s %s\n", t, e.PacketLoss*100, sat, e.Cause)
+			fmt.Printf("- %s loss=%.0f%%%s %s (conf=%.2f, %s)\n", t, e.PacketLoss*100, sat, e.Cause, e.Confidence, e.ConfidenceWhy)
 		} else {
-			fmt.Printf("[%s] loss=%.0f%%%s\n  snr=%s (baseline %s)  noise=%s (baseline %s)\n  %s\n\n",
+			fmt.Printf("[%s] loss=%.0f%%%s\n  snr=%s (baseline %s)  noise=%s (baseline %s)\n  %s\n  confidence=%.2f (%s)\n\n",
 				t, e.PacketLoss*100, sat,
 				fmtDB(e.BeaconSNR), fmtDB(e.BaselineSNR),
 				fmtDB(e.NoiseFloor), fmtDB(e.BaselineNoise),
-				e.Cause)
+				e.Cause, e.Confidence, e.ConfidenceWhy)
 		}
 	}
 

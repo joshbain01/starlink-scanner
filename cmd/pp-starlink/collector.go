@@ -39,6 +39,11 @@ type Collector struct {
 	tles      []orbit.TLE
 	tleExpiry time.Time
 
+	// POP path tracking for path-change signal.
+	popIP          string
+	popChangedNext bool
+	lastPOPDetect  time.Time
+
 	// Rate-limit maintenance ops to protect flash storage.
 	// Zero values mean "never run yet" so the first Tick triggers each.
 	lastPrune         time.Time
@@ -55,6 +60,7 @@ func NewCollector(d *db.DB, cfg Config, targets [3]string, lat, lon float64, has
 		tleCacheFile: cfg.TLECacheFile,
 		grpcurlPath:  cfg.GrpcurlPath,
 		targets:      targets,
+		popIP:        targets[1],
 		lat:          lat,
 		lon:          lon,
 		hasObs:       hasObs,
@@ -91,6 +97,7 @@ func (c *Collector) Close() {
 func (c *Collector) Tick(ctx context.Context) {
 	now := time.Now()
 	c.maybeRefreshTLEs(now)
+	c.maybeRefreshPOP(now)
 	for _, err := range c.maint.Tick(now) {
 		log.Printf("maintenance: %v", err)
 	}
@@ -110,6 +117,36 @@ func (c *Collector) Tick(ctx context.Context) {
 			log.Printf("grpc: %d consecutive failures — redialing", c.grpcFails)
 			c.dial()
 		}
+	}
+}
+
+func (c *Collector) maybeRefreshPOP(now time.Time) {
+	if now.Sub(c.lastPOPDetect) < 30*time.Minute {
+		return
+	}
+	c.lastPOPDetect = now
+
+	pop, err := detectPOP()
+	if err != nil {
+		log.Printf("POP refresh failed (%v) — keeping current POP target", err)
+		return
+	}
+	if pop == "" {
+		return
+	}
+
+	if c.popIP == "" {
+		c.popIP = pop
+		c.targets[1] = pop
+		log.Printf("POP IP initialized: %s", pop)
+		return
+	}
+
+	if pop != c.popIP {
+		log.Printf("POP path changed: %s -> %s", c.popIP, pop)
+		c.popIP = pop
+		c.targets[1] = pop
+		c.popChangedNext = true
 	}
 }
 
@@ -278,40 +315,42 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 	}
 
 	s := db.NetworkSample{
-		Timestamp:                  now,
-		UptimeS:                    status.UptimeS,
-		ObstructionFraction:        status.ObstructionFraction,
-		CurrentlyObstructed:        status.CurrentlyObstructed,
-		ThermalShutdown:            status.Alerts.ThermalShutdown,
-		ThermalThrottle:            status.Alerts.ThermalThrottle,
-		SlowEthernet:               status.Alerts.SlowEthernet,
-		GatewayJitterMs:            pings[0].JitterMs,
-		POPJitterMs:                pings[1].JitterMs,
-		POPLatencyMs:               float64(status.POPLatencyMs),
-		POPDropRate:                float64(status.POPDropRate),
-		PublicPacketLoss:           pings[2].PacketLoss,
-		LowerSignalThanPredicted:   status.Alerts.LowerSignalThanPredicted,
-		IsSnrAboveNoiseFloor:       status.IsSnrAboveNoiseFloor,
-		IsSnrPersistentlyLow:       status.IsSnrPersistentlyLow,
-		DownlinkBps:                status.DownlinkBps,
-		UplinkBps:                  status.UplinkBps,
-		OutageCause:                status.OutageCause,
-		BoresightAzimuthDeg:        bAz,
-		BoresightElevationDeg:      bEl,
-		TiltAngleDeg:               tilt,
+		Timestamp:                   now,
+		UptimeS:                     status.UptimeS,
+		ObstructionFraction:         status.ObstructionFraction,
+		CurrentlyObstructed:         status.CurrentlyObstructed,
+		ThermalShutdown:             status.Alerts.ThermalShutdown,
+		ThermalThrottle:             status.Alerts.ThermalThrottle,
+		SlowEthernet:                status.Alerts.SlowEthernet,
+		GatewayJitterMs:             pings[0].JitterMs,
+		POPJitterMs:                 pings[1].JitterMs,
+		POPIP:                       c.popIP,
+		POPPathChanged:              c.popChangedNext,
+		POPLatencyMs:                float64(status.POPLatencyMs),
+		POPDropRate:                 float64(status.POPDropRate),
+		PublicPacketLoss:            pings[2].PacketLoss,
+		LowerSignalThanPredicted:    status.Alerts.LowerSignalThanPredicted,
+		IsSnrAboveNoiseFloor:        status.IsSnrAboveNoiseFloor,
+		IsSnrPersistentlyLow:        status.IsSnrPersistentlyLow,
+		DownlinkBps:                 status.DownlinkBps,
+		UplinkBps:                   status.UplinkBps,
+		OutageCause:                 status.OutageCause,
+		BoresightAzimuthDeg:         bAz,
+		BoresightElevationDeg:       bEl,
+		TiltAngleDeg:                tilt,
 		DLBandwidthRestrictedReason: status.DLBandwidthRestrictedReason,
 		ULBandwidthRestrictedReason: status.ULBandwidthRestrictedReason,
-		EthSpeedMbps:               status.EthSpeedMbps,
-		IsHeating:                  status.Alerts.IsHeating,
-		PowerSupplyThermalThrottle: status.Alerts.PowerSupplyThermalThrottle,
-		DishWaterDetected:          status.Alerts.DishWaterDetected,
-		RouterWaterDetected:        status.Alerts.RouterWaterDetected,
-		NoEthernetLink:             status.Alerts.NoEthernetLink,
-		Roaming:                    status.Alerts.Roaming,
-		MaxLatencyMs:               maxLat,
-		MinLatencyMs:               minLat,
-		BriefOutageCount:           briefCount,
-		BriefOutageDurationS:       briefDur,
+		EthSpeedMbps:                status.EthSpeedMbps,
+		IsHeating:                   status.Alerts.IsHeating,
+		PowerSupplyThermalThrottle:  status.Alerts.PowerSupplyThermalThrottle,
+		DishWaterDetected:           status.Alerts.DishWaterDetected,
+		RouterWaterDetected:         status.Alerts.RouterWaterDetected,
+		NoEthernetLink:              status.Alerts.NoEthernetLink,
+		Roaming:                     status.Alerts.Roaming,
+		MaxLatencyMs:                maxLat,
+		MinLatencyMs:                minLat,
+		BriefOutageCount:            briefCount,
+		BriefOutageDurationS:        briefDur,
 	}
 
 	if c.hasObs {
@@ -329,6 +368,7 @@ func (c *Collector) sample(ctx context.Context) (grpcOK bool) {
 	if err := c.d.WriteNetwork(s); err != nil {
 		log.Printf("db write: %v", err)
 	}
+	c.popChangedNext = false
 
 	// Write structured outage events from history (INSERT OR IGNORE, flash-safe).
 	if len(history.Outages) > 0 {

@@ -3,6 +3,8 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +26,8 @@ type NetworkSample struct {
 	SlowEthernet             bool
 	GatewayJitterMs          float64
 	POPJitterMs              float64
+	POPIP                    string
+	POPPathChanged           bool
 	POPLatencyMs             float64
 	POPDropRate              float64
 	PublicPacketLoss         float64
@@ -59,9 +63,9 @@ type NetworkSample struct {
 	Roaming                    bool
 
 	// History-derived window stats (last 15 seconds)
-	MaxLatencyMs        float32
-	MinLatencyMs        float32
-	BriefOutageCount    int
+	MaxLatencyMs         float32
+	MinLatencyMs         float32
+	BriefOutageCount     int
 	BriefOutageDurationS float32
 }
 
@@ -82,6 +86,8 @@ type InsightEvent struct {
 	LowerSignalThanPredicted bool
 	IsSnrAboveNoiseFloor     bool
 	Cause                    string
+	Confidence               float64
+	ConfidenceWhy            string
 	SatelliteID              *string
 	Azimuth                  *float64
 	Elevation                *float64
@@ -193,6 +199,8 @@ var migrations = []migration{
 	{8, `ALTER TABLE network_telemetry ADD COLUMN min_latency_ms REAL`},
 	{8, `ALTER TABLE network_telemetry ADD COLUMN brief_outage_count INTEGER`},
 	{8, `ALTER TABLE network_telemetry ADD COLUMN brief_outage_duration_s REAL`},
+	{9, `ALTER TABLE network_telemetry ADD COLUMN pop_ip TEXT`},
+	{9, `ALTER TABLE network_telemetry ADD COLUMN pop_path_changed INTEGER`},
 }
 
 func (d *DB) runMigrations() error {
@@ -267,6 +275,7 @@ func (d *DB) WriteNetwork(s NetworkSample) error {
 		`INSERT INTO network_telemetry
 			(timestamp, uptime_s, obstruction_fraction, alert_flags,
 			 local_jitter, pop_jitter, public_packet_loss,
+			 pop_ip, pop_path_changed,
 			 lower_signal_than_predicted, is_snr_above_noise_floor,
 			 target_satellite_id, calculated_azimuth, calculated_elevation,
 			 pop_latency_ms, pop_drop_rate,
@@ -280,9 +289,10 @@ func (d *DB) WriteNetwork(s NetworkSample) error {
 			 alert_no_ethernet_link, alert_roaming,
 			 max_latency_ms, min_latency_ms,
 			 brief_outage_count, brief_outage_duration_s)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		s.Timestamp.Unix(), s.UptimeS, s.ObstructionFraction, flags,
 		s.GatewayJitterMs, s.POPJitterMs, s.PublicPacketLoss,
+		s.POPIP, boolInt(s.POPPathChanged),
 		boolInt(s.LowerSignalThanPredicted), boolInt(s.IsSnrAboveNoiseFloor),
 		s.SatelliteID, s.Azimuth, s.Elevation,
 		s.POPLatencyMs, s.POPDropRate,
@@ -444,6 +454,17 @@ func (d *DB) QueryInsights(lossThreshold, snrDelta, noiseDelta float64) ([]Insig
 		}
 		lower := lowerSignal != nil && *lowerSignal == 1
 		aboveNoise := snrAboveNoise == nil || *snrAboveNoise == 1
+		cause := analysis.DiagnoseCause(analysis.DiagnoseParams{
+			BeaconSNR:                snr,
+			BaselineSNR:              bsnr,
+			NoiseFloor:               noise,
+			BaselineNoise:            bnoise,
+			LowerSignalThanPredicted: lower,
+			IsSnrAboveNoiseFloor:     aboveNoise,
+			SNRDelta:                 snrDelta,
+			NoiseDelta:               noiseDelta,
+		})
+		conf, why := diagnosisConfidence(snr, noise, bsnr, bnoise, lower, aboveNoise, snrDelta, noiseDelta, cause)
 		events = append(events, InsightEvent{
 			Timestamp:                time.Unix(ts, 0),
 			PacketLoss:               loss,
@@ -453,22 +474,51 @@ func (d *DB) QueryInsights(lossThreshold, snrDelta, noiseDelta float64) ([]Insig
 			BaselineNoise:            bnoise,
 			LowerSignalThanPredicted: lower,
 			IsSnrAboveNoiseFloor:     aboveNoise,
-			Cause: analysis.DiagnoseCause(analysis.DiagnoseParams{
-				BeaconSNR:                snr,
-				BaselineSNR:              bsnr,
-				NoiseFloor:               noise,
-				BaselineNoise:            bnoise,
-				LowerSignalThanPredicted: lower,
-				IsSnrAboveNoiseFloor:     aboveNoise,
-				SNRDelta:                 snrDelta,
-				NoiseDelta:               noiseDelta,
-			}),
+			Cause:                    cause,
+			Confidence:               conf,
+			ConfidenceWhy:            why,
 			SatelliteID:              satID,
 			Azimuth:                  az,
 			Elevation:                el,
 		})
 	}
 	return events, rows.Err()
+}
+
+func diagnosisConfidence(snr, noise, bsnr, bnoise *float64, lower, aboveNoise bool, snrDelta, noiseDelta float64, cause string) (float64, string) {
+	conf := 0.45
+	why := "baseline"
+	if snr != nil && bsnr != nil {
+		d := (*bsnr - *snr) - snrDelta
+		if d > 0 {
+			conf += math.Min(0.35, d/6.0)
+			why = "snr margin"
+		}
+	}
+	if noise != nil && bnoise != nil {
+		d := (*noise - *bnoise) - noiseDelta
+		if d > 0 {
+			conf += math.Min(0.35, d/6.0)
+			why = "noise margin"
+		}
+	}
+	if lower || !aboveNoise {
+		conf += 0.15
+		why = "dish alert corroboration"
+	}
+	if cause == "Downstream Network Pop / Carrier Congestion" {
+		conf -= 0.10
+		if why == "baseline" {
+			why = "default fallback classification"
+		}
+	}
+	if conf < 0.05 {
+		conf = 0.05
+	}
+	if conf > 0.99 {
+		conf = 0.99
+	}
+	return conf, why
 }
 
 // ObstructionZone is one az/el bucket from the physical obstruction map.
@@ -559,9 +609,9 @@ type RebootEvent struct {
 
 // CauseStat is one row of the outage-cause breakdown.
 type CauseStat struct {
-	Cause    string
-	Samples  int
-	AvgLoss  float64
+	Cause   string
+	Samples int
+	AvgLoss float64
 }
 
 // HandoffStat compares drop rates at handoff vs non-handoff samples.
@@ -570,6 +620,17 @@ type HandoffStat struct {
 	HandoffDrops      int
 	NonHandoffSamples int
 	NonHandoffDrops   int
+}
+
+// POPPathStat summarizes path-change frequency and quality impact.
+type POPPathStat struct {
+	Changes          int
+	SamplesAfter     int
+	DropsAfter       int
+	SamplesStable    int
+	DropsStable      int
+	LastPOP          string
+	DistinctPOPCount int
 }
 
 func (d *DB) queryReportSummary() (ReportSummary, error) {
@@ -648,6 +709,15 @@ type BurstSummary struct {
 	TotalBursts     int
 	TotalOutageTime time.Duration
 	Worst           []OutageBurst // top 5 by duration
+	Shape           BurstShape
+}
+
+// BurstShape summarizes outage burst morphology.
+type BurstShape struct {
+	AvgMinutes   float64
+	P95Minutes   float64
+	MaxMinutes   float64
+	SevereBursts int // bursts >= 3 minutes
 }
 
 func (d *DB) queryOutageBursts() (BurstSummary, error) {
@@ -668,6 +738,7 @@ func (d *DB) queryOutageBursts() (BurstSummary, error) {
 	}
 	defer rows.Close()
 	var s BurstSummary
+	var durs []float64
 	for rows.Next() {
 		var start, end int64
 		var n int
@@ -675,8 +746,13 @@ func (d *DB) queryOutageBursts() (BurstSummary, error) {
 			return s, err
 		}
 		dur := time.Duration(end-start) * time.Second
+		durMin := dur.Minutes()
 		s.TotalBursts++
 		s.TotalOutageTime += dur
+		durs = append(durs, durMin)
+		if durMin >= 3.0 {
+			s.Shape.SevereBursts++
+		}
 		if len(s.Worst) < 5 {
 			s.Worst = append(s.Worst, OutageBurst{
 				Start:    time.Unix(start, 0),
@@ -685,6 +761,23 @@ func (d *DB) queryOutageBursts() (BurstSummary, error) {
 				Duration: dur,
 			})
 		}
+	}
+	if len(durs) > 0 {
+		sort.Float64s(durs)
+		total := 0.0
+		for _, v := range durs {
+			total += v
+		}
+		s.Shape.AvgMinutes = total / float64(len(durs))
+		s.Shape.MaxMinutes = durs[len(durs)-1]
+		idx := int(math.Ceil(0.95*float64(len(durs)))) - 1
+		if idx < 0 {
+			idx = 0
+		}
+		if idx >= len(durs) {
+			idx = len(durs) - 1
+		}
+		s.Shape.P95Minutes = durs[idx]
 	}
 	return s, rows.Err()
 }
@@ -810,6 +903,37 @@ func (d *DB) queryHandoffStats(lossThreshold float64) (HandoffStat, error) {
 	return s, err
 }
 
+func (d *DB) queryPOPPathStats(lossThreshold float64) (POPPathStat, error) {
+	var s POPPathStat
+	err := d.db.QueryRow(`
+		WITH tagged AS (
+			SELECT
+				COALESCE(pop_path_changed, 0) AS changed,
+				public_packet_loss AS loss,
+				pop_ip
+			FROM network_telemetry
+		)
+		SELECT
+			SUM(CASE WHEN changed = 1 THEN 1 ELSE 0 END),
+			SUM(CASE WHEN changed = 1 THEN 1 ELSE 0 END),
+			SUM(CASE WHEN changed = 1 AND loss >= ? THEN 1 ELSE 0 END),
+			SUM(CASE WHEN changed = 0 THEN 1 ELSE 0 END),
+			SUM(CASE WHEN changed = 0 AND loss >= ? THEN 1 ELSE 0 END),
+			(SELECT pop_ip FROM network_telemetry WHERE pop_ip IS NOT NULL AND pop_ip != '' ORDER BY timestamp DESC LIMIT 1),
+			(SELECT COUNT(DISTINCT pop_ip) FROM network_telemetry WHERE pop_ip IS NOT NULL AND pop_ip != '')
+		FROM tagged
+	`, lossThreshold, lossThreshold).Scan(
+		&s.Changes,
+		&s.SamplesAfter,
+		&s.DropsAfter,
+		&s.SamplesStable,
+		&s.DropsStable,
+		&s.LastPOP,
+		&s.DistinctPOPCount,
+	)
+	return s, err
+}
+
 // ReportParams controls what QueryReport assembles.
 type ReportParams struct {
 	LossThreshold float64
@@ -827,6 +951,7 @@ type Report struct {
 	Satellites    []SatelliteStat
 	TotalSatDrops int
 	Handoffs      HandoffStat
+	POPPath       POPPathStat
 	Buckets       []SpatialBucket
 }
 
@@ -858,6 +983,9 @@ func (d *DB) QueryReport(p ReportParams) (*Report, error) {
 	}
 	if r.Handoffs, err = d.queryHandoffStats(p.LossThreshold); err != nil {
 		return nil, fmt.Errorf("handoff stats: %w", err)
+	}
+	if r.POPPath, err = d.queryPOPPathStats(p.LossThreshold); err != nil {
+		return nil, fmt.Errorf("pop path stats: %w", err)
 	}
 	if r.Buckets, err = d.SpatialBuckets(p.LossThreshold); err != nil {
 		return nil, fmt.Errorf("spatial buckets: %w", err)
